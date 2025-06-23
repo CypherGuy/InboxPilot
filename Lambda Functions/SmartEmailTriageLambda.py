@@ -40,6 +40,7 @@ def lambda_handler(event, context):
 
     item = {
         "emailId": str(uuid.uuid4()),
+        "userID": sender,
         "from": sender,
         "subject": subject,
         "body": body[:1000],
