@@ -69,7 +69,7 @@ def extract_body(msg):
 def classify_email(subject, body):
     system_prompt = (
         "You are a classification assistant. "
-        "Categorize this email into exactly one of: Sales, Job, Spam, Other, or Unknown. "
+        "Categorize this email into exactly one of: Sales, Job, Spam, Business Opportunity, Other, or Unknown. "
         "If the email contains offensive or harmful content, choose Spam. "
         "Only respond with the single label."
     )
