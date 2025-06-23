@@ -1,3 +1,4 @@
+from boto3.dynamodb.conditions import Attr
 import json
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -74,11 +75,19 @@ def emails_handler(event, context):
             "body": json.dumps({"error": "Missing userID"})
         }
 
+    # Check if user exists
     response = users_table.get_item(Key={"userID": user_id})
+    if "Item" not in response:
+        return {
+            "statusCode": 404,
+            "body": json.dumps({"error": "User not found"})
+        }
 
-    emails = [
-        {"from": "example@example.com", "subject": "Hello", "body": "Test email."}
-    ]
+    email_response = emails_table.scan(
+        FilterExpression=Attr("userID").eq(user_id)
+    )
+
+    emails = email_response.get("Items", [])
 
     return {
         "statusCode": 200,
