@@ -1,7 +1,7 @@
 from boto3.dynamodb.conditions import Attr
 import json
 import boto3
-from boto3.dynamodb.conditions import Key
+
 
 dynamodb = boto3.resource("dynamodb")
 users_table = dynamodb.Table("Users")
