@@ -130,17 +130,18 @@ def lambda_handler(event, context):
             "body": json.dumps({"error": "Unauthorized"})
         }
 
-    route_key = event.get("routeKey")
+    method = event.get("httpMethod")
+    path = event.get("path")
 
-    if route_key == "POST /register":
+    if method == "POST" and path == "/register":
         return register_handler(event, context)
-    elif route_key == "POST /login":
+    elif method == "POST" and path == "/login":
         return login_handler(event, context)
-    elif route_key == "POST /reply":
+    elif method == "POST" and path == "/reply":
         return reply_handler(event, context)
-    elif route_key == "GET /emails":
+    elif method == "GET" and path == "/emails":
         return emails_handler(event, context)
-    elif route_key == "POST /update-reply":
+    elif method == "POST" and path == "/update-reply":
         return update_reply_handler(event, context)
     else:
         return {
