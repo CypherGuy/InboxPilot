@@ -1,8 +1,9 @@
 from boto3.dynamodb.conditions import Attr
 import json
 import boto3
+import os
 
-
+SECRET_TOKEN = os.environ["AUTH_TOKEN"]  # Stored in AWS Lambda
 dynamodb = boto3.resource("dynamodb")
 users_table = dynamodb.Table("Users")
 emails_table = dynamodb.Table("Emails")
@@ -120,6 +121,15 @@ def update_reply_handler(event, context):
 
 
 def lambda_handler(event, context):
+    headers = event.get("headers", {})
+    token = headers.get("Authorization")
+
+    if token != SECRET_TOKEN:
+        return {
+            "statusCode": 403,
+            "body": json.dumps({"error": "Unauthorized"})
+        }
+
     route_key = event.get("routeKey")
 
     if route_key == "POST /register":
