@@ -121,14 +121,8 @@ def update_reply_handler(event, context):
 
 
 def lambda_handler(event, context):
+    print("EVENT:", json.dumps(event))
     headers = event.get("headers", {})
-    token = headers.get("Authorization")
-
-    if token != SECRET_TOKEN:
-        return {
-            "statusCode": 403,
-            "body": json.dumps({"error": "Unauthorized"})
-        }
 
     method = event.get("httpMethod")
     path = event.get("path")
