@@ -95,17 +95,43 @@ def emails_handler(event, context):
     }
 
 
+def update_reply_handler(event, context):
+    body = json.loads(event["body"])
+    user_id = body.get("userID")
+    new_template = body.get("replyTemplate")
+
+    if not user_id or not new_template:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "Missing userID or replyTemplate"})
+        }
+
+    # Update user
+    users_table.update_item(
+        Key={"userID": user_id},
+        UpdateExpression="SET replyTemplate = :r",
+        ExpressionAttributeValues={":r": new_template}
+    )
+
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"message": "Reply template updated"})
+    }
+
+
 def lambda_handler(event, context):
     route_key = event.get("routeKey")
+    handlers = {
+        "POST /register": register_handler,
+        "POST /login": login_handler,
+        "POST /reply": reply_handler,
+        "GET /emails": emails_handler,
+        "POST /update-reply": update_reply_handler
+    }
 
-    if route_key == "POST /register":
-        return register_handler(event, context)
-    elif route_key == "POST /login":
-        return login_handler(event, context)
-    elif route_key == "POST /reply":
-        return reply_handler(event, context)
-    elif route_key == "GET /emails":
-        return emails_handler(event, context)
+    handler = handlers.get(route_key)
+    if handler:
+        return handler(event, context)
     else:
         return {
             "statusCode": 404,
