@@ -48,7 +48,15 @@ def login_handler(event, context):
 
 
 def reply_handler(event, context):
-    user_id = event.get("queryStringParameters", {}).get("userID")
+    try:
+        body = json.loads(event["body"])
+    except (TypeError, json.JSONDecodeError):
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "Invalid JSON body"})
+        }
+
+    user_id = body.get("userID")
 
     if not user_id:
         return {
@@ -128,7 +136,7 @@ def lambda_handler(event, context):
         return register_handler(event, context)
     elif method == "POST" and path == "/login":
         return login_handler(event, context)
-    elif method == "GET" and path == "/reply":
+    elif method == "POST" and path == "/reply":
         return reply_handler(event, context)
     elif method == "GET" and path == "/emails":
         return emails_handler(event, context)
