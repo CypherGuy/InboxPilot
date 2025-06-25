@@ -4,14 +4,13 @@ from email import policy
 import json
 import uuid
 from datetime import datetime, timedelta
-from boto3.dynamodb.conditions import Attr
+from email.utils import parseaddr
 
 # AWS clients
 s3 = boto3.client("s3")
 bedrock = boto3.client("bedrock-runtime", region_name="eu-west-1")
 dynamodb = boto3.resource("dynamodb")
 emails_table = dynamodb.Table("Emails")
-users_table = dynamodb.Table("Users")
 
 # Configuration
 MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
@@ -26,32 +25,30 @@ def lambda_handler(event, context):
         action = rec0["ses"]["receipt"]["action"]
         bucket = action["bucketName"]
         key = action["objectKey"]
+        recipients = event["Records"][0]["ses"]["receipt"]["recipients"]
+        to_email = recipients[0] if recipients else "[Unknown recipient]"
     else:
         # From S3 → Lambda notification
         s3rec = rec0["s3"]
         bucket = s3rec["bucket"]["name"]
         key = s3rec["object"]["key"]
+        to_email = "[Unknown recipient]"
 
     raw = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
     msg = email.message_from_bytes(raw, policy=policy.default)
     subject = msg.get("subject", "[No Subject]")
-    sender = msg.get("from", "[Unknown sender]").lower()
+    sender = msg.get("from", "[Unknown sender]")
+    sender_name, sender_email = parseaddr(sender)
     body = extract_body(msg)
-
-    # Check if user in DB
-    user_id = get_user_id_by_proxy_email(sender)
-    if not user_id:
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"error": f"Sender {sender} not associated with any user"})
-        }
 
     triage, is_flagged = classify_email(subject, body)
 
     item = {
         "emailId": str(uuid.uuid4()),
-        "userID": user_id,
-        "from": sender,
+        "userID": to_email,
+        "senderName": sender_name,
+        "fromEmail": sender_email,
+        "toEmail": to_email,
         "subject": subject,
         "body": body[:1000],
         "triage": triage,
@@ -116,13 +113,3 @@ def classify_email(subject, body):
         return ("Flagged", True) if label.lower() == "flagged" else (label, False)
     except:
         return "Unknown", False
-
-
-def get_user_id_by_proxy_email(from_email):
-    response = users_table.scan(
-        FilterExpression=Attr("proxyEmail").eq(from_email)
-    )
-    items = response.get("Items", [])
-    if items:
-        return items[0]["userID"]
-    return None
