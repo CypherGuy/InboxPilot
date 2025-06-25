@@ -1,3 +1,4 @@
+import bcrypt
 from boto3.dynamodb.conditions import Attr
 import json
 import boto3
@@ -15,12 +16,24 @@ def register_handler(event, context):
     name = body["name"]
     proxy_email = body["proxyEmail"]
     reply_template = body["replyTemplate"]
+    raw_password = body["password"]
+
+    existing = users_table.get_item(Key={"userID": user_id})
+    if "Item" in existing:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "User already exists"})
+        }
+
+    hashed_pw = bcrypt.hashpw(raw_password.encode(
+        'utf-8'), bcrypt.gensalt()).decode('utf-8')
 
     users_table.put_item(Item={
         "userID": user_id,
         "name": name,
         "proxyEmail": proxy_email,
-        "replyTemplate": reply_template
+        "replyTemplate": reply_template,
+        "password": hashed_pw
     })
 
     return {
@@ -32,19 +45,38 @@ def register_handler(event, context):
 def login_handler(event, context):
     body = json.loads(event["body"])
     user_id = body["userID"]
+    raw_password = body["password"]
 
+    # Fetch user by ID
     response = users_table.get_item(Key={"userID": user_id})
 
-    if "Item" in response:
-        return {
-            "statusCode": 200,
-            "body": json.dumps({"message": "Login successful", "user": response["Item"]})
-        }
-    else:
+    if "Item" not in response:
         return {
             "statusCode": 401,
-            "body": json.dumps({"message": "Invalid credentials"})
+            "body": json.dumps({"error": "User does not exist"})
         }
+
+    stored_user = response["Item"]
+    hashed_pw = stored_user.get("password")
+
+    if not hashed_pw:
+        return {
+            "statusCode": 401,
+            "body": json.dumps({"error": "Password not set"})
+        }
+
+    if not bcrypt.checkpw(raw_password.encode('utf-8'), hashed_pw.encode('utf-8')):
+        return {
+            "statusCode": 401,
+            "body": json.dumps({"error": "Incorrect password"})
+        }
+
+    stored_user.pop("password", None)
+
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"message": "Login successful", "user": stored_user})
+    }
 
 
 def reply_handler(event, context):
