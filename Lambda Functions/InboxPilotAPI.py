@@ -68,24 +68,16 @@ def reply_handler(event, context):
 
 
 def emails_handler(event, context):
-    user_id = event.get("queryStringParameters", {}).get("userID")
+    to_email = event.get("queryStringParameters", {}).get("toEmail")
 
-    if not user_id:
+    if not to_email:
         return {
             "statusCode": 400,
-            "body": json.dumps({"error": "Missing userID"})
-        }
-
-    # Check if user exists
-    response = users_table.get_item(Key={"userID": user_id})
-    if "Item" not in response:
-        return {
-            "statusCode": 404,
-            "body": json.dumps({"error": "User not found"})
+            "body": json.dumps({"error": "Missing toEmail"})
         }
 
     email_response = emails_table.scan(
-        FilterExpression=Attr("userID").eq(user_id)
+        FilterExpression=Attr("toEmail").eq(to_email)
     )
 
     emails = email_response.get("Items", [])

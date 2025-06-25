@@ -20,19 +20,17 @@ GUARDRAIL_VERSION = "DRAFT"
 
 def lambda_handler(event, context):
     rec0 = event["Records"][0]
+
     if "ses" in rec0:
         # SES receipt rule invocation
         action = rec0["ses"]["receipt"]["action"]
         bucket = action["bucketName"]
         key = action["objectKey"]
-        recipients = event["Records"][0]["ses"]["receipt"]["recipients"]
-        to_email = recipients[0] if recipients else "[Unknown recipient]"
     else:
         # From S3 → Lambda notification
         s3rec = rec0["s3"]
         bucket = s3rec["bucket"]["name"]
         key = s3rec["object"]["key"]
-        to_email = "[Unknown recipient]"
 
     raw = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
     msg = email.message_from_bytes(raw, policy=policy.default)
@@ -40,6 +38,13 @@ def lambda_handler(event, context):
     sender = msg.get("from", "[Unknown sender]")
     sender_name, sender_email = parseaddr(sender)
     body = extract_body(msg)
+
+    # Try to extract recipient from SES, fallback to email headers
+    to_header = msg.get("to", "[Unknown recipient]")
+    _, to_email_fallback = parseaddr(to_header)
+
+    recipients = rec0.get("ses", {}).get("receipt", {}).get("recipients", [])
+    to_email = recipients[0] if recipients else to_email_fallback
 
     triage, is_flagged = classify_email(subject, body)
 
