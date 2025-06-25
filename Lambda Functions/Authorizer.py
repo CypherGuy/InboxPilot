@@ -7,11 +7,12 @@ def lambda_handler(event, context):
     print("EVENT:", event)
 
     token = event.get("authorizationToken")
-    if token.startswith("Bearer "):
+    if token and token.startswith("Bearer "):
         token = token[len("Bearer "):]
 
     if token == SECRET_TOKEN:
-        return generate_policy("user", "Allow", event["methodArn"])
+        base_arn = event["methodArn"].rsplit("/", 2)[0] + "/*"
+        return generate_policy("user", "Allow", base_arn)
     else:
         return generate_policy("user", "Deny", event["methodArn"])
 

@@ -4,7 +4,7 @@ import json
 import boto3
 import os
 
-SECRET_TOKEN = os.environ["AUTH_TOKEN"]  # Stored in AWS Lambda
+SECRET_TOKEN = os.environ["AUTH_TOKEN"]
 dynamodb = boto3.resource("dynamodb")
 users_table = dynamodb.Table("Users")
 emails_table = dynamodb.Table("Emails")
@@ -47,7 +47,6 @@ def login_handler(event, context):
     user_id = body["userID"]
     raw_password = body["password"]
 
-    # Fetch user by ID
     response = users_table.get_item(Key={"userID": user_id})
 
     if "Item" not in response:
@@ -62,7 +61,7 @@ def login_handler(event, context):
     if not hashed_pw:
         return {
             "statusCode": 401,
-            "body": json.dumps({"error": "Password not set"})
+            "body": json.dumps({"error": "Password not set for this user"})
         }
 
     if not bcrypt.checkpw(raw_password.encode('utf-8'), hashed_pw.encode('utf-8')):
@@ -80,15 +79,7 @@ def login_handler(event, context):
 
 
 def reply_handler(event, context):
-    try:
-        body = json.loads(event["body"])
-    except (TypeError, json.JSONDecodeError):
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"error": "Invalid JSON body"})
-        }
-
-    user_id = body.get("userID")
+    user_id = event.get("queryStringParameters", {}).get("userID")
 
     if not user_id:
         return {
@@ -100,7 +91,8 @@ def reply_handler(event, context):
 
     if "Item" in response:
         reply = response["Item"].get(
-            "replyTemplate", "Hey, Thanks for reaching out. I'll get back to you soon!")
+            "replyTemplate", "Hey, Thanks for reaching out. I'll get back to you soon!"
+        )
         return {
             "statusCode": 200,
             "body": json.dumps({"reply": reply})
@@ -144,7 +136,6 @@ def update_reply_handler(event, context):
             "body": json.dumps({"error": "Missing userID or replyTemplate"})
         }
 
-    # Update the user
     users_table.update_item(
         Key={"userID": user_id},
         UpdateExpression="SET replyTemplate = :r",
@@ -159,20 +150,18 @@ def update_reply_handler(event, context):
 
 def lambda_handler(event, context):
     print("EVENT:", json.dumps(event))
-    headers = event.get("headers", {})
-
     method = event.get("httpMethod")
-    path = event.get("path")
+    resource = event.get("resource")
 
-    if method == "POST" and path == "/register":
+    if method == "POST" and resource == "/register":
         return register_handler(event, context)
-    elif method == "POST" and path == "/login":
+    elif method == "POST" and resource == "/login":
         return login_handler(event, context)
-    elif method == "POST" and path == "/reply":
+    elif method == "GET" and resource == "/reply":
         return reply_handler(event, context)
-    elif method == "GET" and path == "/emails":
+    elif method == "GET" and resource == "/emails":
         return emails_handler(event, context)
-    elif method == "POST" and path == "/update-reply":
+    elif method == "POST" and resource == "/update-reply":
         return update_reply_handler(event, context)
     else:
         return {
