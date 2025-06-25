@@ -123,7 +123,7 @@ def lambda_handler(event, context):
         return register_handler(event, context)
     elif method == "POST" and path == "/login":
         return login_handler(event, context)
-    elif method == "POST" and path == "/reply":
+    elif method == "GET" and path == "/reply":
         return reply_handler(event, context)
     elif method == "GET" and path == "/emails":
         return emails_handler(event, context)
