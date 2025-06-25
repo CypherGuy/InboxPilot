@@ -48,8 +48,13 @@ def login_handler(event, context):
 
 
 def reply_handler(event, context):
-    body = json.loads(event["body"])
-    user_id = body["userID"]
+    user_id = event.get("queryStringParameters", {}).get("userID")
+
+    if not user_id:
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "Missing userID"})
+        }
 
     response = users_table.get_item(Key={"userID": user_id})
 
