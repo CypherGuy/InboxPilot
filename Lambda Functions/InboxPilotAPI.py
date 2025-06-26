@@ -109,7 +109,6 @@ def reply_handler(event, context):
 
 
 def emails_handler(event, context):
-    # Put in a try-except loop to capture sneaky errors
     try:
         to_email = event.get("queryStringParameters", {}).get("toEmail")
         triage_filter = event.get("queryStringParameters", {}).get("triage")

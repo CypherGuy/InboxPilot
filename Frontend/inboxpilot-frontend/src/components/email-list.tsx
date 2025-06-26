@@ -24,6 +24,7 @@ interface Email {
     | "Spam"
     | "Other"
     | "Unknown"
+    | "Flagged"
     | "Business Opportunity";
   userID: string;
 }
@@ -94,28 +95,52 @@ export function EmailList({ initialEmails }: EmailListProps) {
   return (
     <ScrollArea className="h-[calc(100vh-120px)] rounded-md border p-4">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {emails.map((email) => (
-          <Card key={email.emailId}>
-            <CardHeader>
-              <CardTitle className="text-lg">
-                {email.subject || "No Subject"}
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                From: {email.sender} ({email.fromEmail})
-              </p>
-              <p className="text-xs text-muted-foreground">
-                To: {email.toEmail} | Triage: {email.triage}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Received: {new Date(email.timestamp).toLocaleString()}
-              </p>
-            </CardHeader>
-            <CardContent>
-              <Separator className="my-2" />
-              <p className="line-clamp-4 text-sm">{email.body}</p>
-            </CardContent>
-          </Card>
-        ))}
+        {emails.map((email) => {
+          const isFlagged = email.triage === "Flagged";
+          const isViewingFlaggedTab = triageFilter === "Flagged";
+          const shouldBlur = isFlagged && !isViewingFlaggedTab;
+
+          return (
+            <Card
+              key={email.emailId}
+              className="relative overflow-hidden group"
+            >
+              {shouldBlur && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none group-hover:backdrop-blur-0 group-hover:bg-transparent transition-all duration-200">
+                  <p className="text-white text-sm font-medium opacity-90 group-hover:opacity-0 transition-opacity duration-200">
+                    Flagged Content – Hover to Reveal
+                  </p>
+                </div>
+              )}
+              <div
+                className={
+                  shouldBlur
+                    ? "blur-sm pointer-events-none select-none group-hover:blur-none group-hover:pointer-events-auto transition-all duration-200"
+                    : ""
+                }
+              >
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    {email.subject || "No Subject"}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    From: {email.sender} ({email.fromEmail})
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    To: {email.toEmail} | Triage: {email.triage}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Received: {new Date(email.timestamp).toLocaleString()}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <Separator className="my-2" />
+                  <p className="line-clamp-4 text-sm">{email.body}</p>
+                </CardContent>
+              </div>
+            </Card>
+          );
+        })}
       </div>
     </ScrollArea>
   );
