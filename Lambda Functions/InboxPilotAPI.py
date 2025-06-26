@@ -9,6 +9,22 @@ dynamodb = boto3.resource("dynamodb")
 users_table = dynamodb.Table("Users")
 emails_table = dynamodb.Table("Emails")
 
+ALLOWED_ORIGIN = "*"
+
+
+def make_response(status_code, body_dict, origin=ALLOWED_ORIGIN):
+    return {
+        "statusCode": status_code,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Credentials": "true"
+        },
+        "body": json.dumps(body_dict)
+    }
+
 
 def register_handler(event, context):
     body = json.loads(event["body"])
@@ -20,10 +36,7 @@ def register_handler(event, context):
 
     existing = users_table.get_item(Key={"userID": user_id})
     if "Item" in existing:
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"error": "User already exists"})
-        }
+        return make_response(400, {"error": "User already exists"})
 
     hashed_pw = bcrypt.hashpw(raw_password.encode(
         'utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -36,93 +49,73 @@ def register_handler(event, context):
         "password": hashed_pw
     })
 
-    return {
-        "statusCode": 200,
-        "body": json.dumps({"message": "User registered successfully."})
-    }
+    return make_response(200, {"message": "User registered successfully."})
 
 
 def login_handler(event, context):
     body = json.loads(event["body"])
-    user_id = body["userID"]
-    raw_password = body["password"]
+    user_id = body.get("userID")
+    raw_password = body.get("password")
+
+    if not user_id or not raw_password:
+        return make_response(400, {"message": "Missing credentials"})
 
     response = users_table.get_item(Key={"userID": user_id})
 
     if "Item" not in response:
-        return {
-            "statusCode": 401,
-            "body": json.dumps({"error": "User does not exist"})
-        }
+        return make_response(401, {"message": "Invalid credentials"})
 
     stored_user = response["Item"]
     hashed_pw = stored_user.get("password")
 
     if not hashed_pw:
-        return {
-            "statusCode": 401,
-            "body": json.dumps({"error": "Password not set for this user"})
-        }
+        return make_response(401, {"message": "Invalid credentials"})
 
-    if not bcrypt.checkpw(raw_password.encode('utf-8'), hashed_pw.encode('utf-8')):
-        return {
-            "statusCode": 401,
-            "body": json.dumps({"error": "Incorrect password"})
-        }
+    password_match = bcrypt.checkpw(
+        raw_password.encode('utf-8'), hashed_pw.encode('utf-8'))
+
+    if not password_match:
+        return make_response(401, {"message": "Invalid credentials"})
 
     stored_user.pop("password", None)
-
-    return {
-        "statusCode": 200,
-        "body": json.dumps({"message": "Login successful", "user": stored_user})
-    }
+    return make_response(200, {"message": "Login successful", "user": stored_user})
 
 
 def reply_handler(event, context):
     user_id = event.get("queryStringParameters", {}).get("userID")
 
     if not user_id:
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"error": "Missing userID"})
-        }
+        return make_response(400, {"error": "Missing userID"})
 
     response = users_table.get_item(Key={"userID": user_id})
 
     if "Item" in response:
         reply = response["Item"].get(
-            "replyTemplate", "Hey, Thanks for reaching out. I'll get back to you soon!"
-        )
-        return {
-            "statusCode": 200,
-            "body": json.dumps({"reply": reply})
-        }
+            "replyTemplate", "Hey, Thanks for reaching out. I'll get back to you soon!")
+        return make_response(200, {"reply": reply})
     else:
-        return {
-            "statusCode": 404,
-            "body": json.dumps({"error": "User not found"})
-        }
+        return make_response(404, {"error": "User not found"})
 
 
 def emails_handler(event, context):
     to_email = event.get("queryStringParameters", {}).get("toEmail")
+    triage_filter = event.get("queryStringParameters", {}).get("triage")
 
     if not to_email:
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"error": "Missing toEmail"})
-        }
+        return make_response(400, {"error": "Missing toEmail"})
+
+    filter_expression = Attr("toEmail").eq(to_email)
+
+    if triage_filter and triage_filter != "All Emails":
+        filter_expression = filter_expression & Attr(
+            "triage").eq(triage_filter)
 
     email_response = emails_table.scan(
-        FilterExpression=Attr("toEmail").eq(to_email)
+        FilterExpression=filter_expression
     )
 
     emails = email_response.get("Items", [])
-
-    return {
-        "statusCode": 200,
-        "body": json.dumps({"emails": emails})
-    }
+    return make_response(200, {"emails": emails})
 
 
 def update_reply_handler(event, context):
@@ -131,10 +124,7 @@ def update_reply_handler(event, context):
     new_template = body.get("replyTemplate")
 
     if not user_id or not new_template:
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"error": "Missing userID or replyTemplate"})
-        }
+        return make_response(400, {"error": "Missing userID or replyTemplate"})
 
     users_table.update_item(
         Key={"userID": user_id},
@@ -142,16 +132,16 @@ def update_reply_handler(event, context):
         ExpressionAttributeValues={":r": new_template}
     )
 
-    return {
-        "statusCode": 200,
-        "body": json.dumps({"message": "Reply template updated"})
-    }
+    return make_response(200, {"message": "Reply template updated"})
 
 
 def lambda_handler(event, context):
-    print("EVENT:", json.dumps(event))
     method = event.get("httpMethod")
     resource = event.get("resource")
+
+    # Handle CORS preflight
+    if method == "OPTIONS":
+        return make_response(200, {"message": "CORS preflight OK"})
 
     if method == "POST" and resource == "/register":
         return register_handler(event, context)
@@ -164,7 +154,4 @@ def lambda_handler(event, context):
     elif method == "POST" and resource == "/update-reply":
         return update_reply_handler(event, context)
     else:
-        return {
-            "statusCode": 404,
-            "body": json.dumps({"error": "Route not found"})
-        }
+        return make_response(404, {"error": "Route not found"})
