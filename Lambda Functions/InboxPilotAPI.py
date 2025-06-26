@@ -3,6 +3,7 @@ from boto3.dynamodb.conditions import Attr
 import json
 import boto3
 import os
+from decimal import Decimal
 
 SECRET_TOKEN = os.environ["AUTH_TOKEN"]
 dynamodb = boto3.resource("dynamodb")
@@ -10,6 +11,16 @@ users_table = dynamodb.Table("Users")
 emails_table = dynamodb.Table("Emails")
 
 ALLOWED_ORIGIN = "*"
+
+
+def convert_decimals(obj):
+    if isinstance(obj, list):
+        return [convert_decimals(i) for i in obj]
+    elif isinstance(obj, dict):
+        return {k: convert_decimals(v) for k, v in obj.items()}
+    elif isinstance(obj, Decimal):
+        return int(obj) if obj % 1 == 0 else float(obj)
+    return obj
 
 
 def make_response(status_code, body_dict, origin=ALLOWED_ORIGIN):
@@ -22,7 +33,7 @@ def make_response(status_code, body_dict, origin=ALLOWED_ORIGIN):
             "Access-Control-Allow-Methods": "*",
             "Access-Control-Allow-Credentials": "true"
         },
-        "body": json.dumps(body_dict)
+        "body": json.dumps(convert_decimals(body_dict))
     }
 
 
@@ -98,24 +109,29 @@ def reply_handler(event, context):
 
 
 def emails_handler(event, context):
-    to_email = event.get("queryStringParameters", {}).get("toEmail")
-    triage_filter = event.get("queryStringParameters", {}).get("triage")
+    # Put in a try-except loop to capture sneaky errors
+    try:
+        to_email = event.get("queryStringParameters", {}).get("toEmail")
+        triage_filter = event.get("queryStringParameters", {}).get("triage")
 
-    if not to_email:
-        return make_response(400, {"error": "Missing toEmail"})
+        if not to_email:
+            return make_response(400, {"error": "Missing toEmail"})
 
-    filter_expression = Attr("toEmail").eq(to_email)
+        filter_expression = Attr("toEmail").eq(to_email)
 
-    if triage_filter and triage_filter != "All Emails":
-        filter_expression = filter_expression & Attr(
-            "triage").eq(triage_filter)
+        if triage_filter and triage_filter != "All Emails":
+            filter_expression = filter_expression & Attr(
+                "triage").eq(triage_filter)
 
-    email_response = emails_table.scan(
-        FilterExpression=filter_expression
-    )
+        email_response = emails_table.scan(
+            FilterExpression=filter_expression
+        )
 
-    emails = email_response.get("Items", [])
-    return make_response(200, {"emails": emails})
+        emails = email_response.get("Items", [])
+        return make_response(200, {"emails": emails})
+
+    except Exception as e:
+        return make_response(500, {"message": "Internal server error", "error": str(e)})
 
 
 def update_reply_handler(event, context):

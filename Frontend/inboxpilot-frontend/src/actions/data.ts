@@ -35,6 +35,7 @@ export async function getEmailsAction(
   const proxyEmail = getProxyEmailCookie();
 
   if (!token || !proxyEmail) {
+    console.warn("Missing auth token or proxy email. Redirecting to login.");
     redirect("/login");
   }
 
@@ -44,9 +45,14 @@ export async function getEmailsAction(
       endpoint += `&triage=${triageFilter}`;
     }
     const data = await apiRequest(endpoint, "GET", undefined, token);
-    return { emails: data.emails || [] };
-  } catch (error) {
-    console.error("Failed to fetch emails:", error);
+
+    if (!data || !Array.isArray(data.emails)) {
+      throw new Error("Malformed response from API");
+    }
+
+    return { emails: data.emails };
+  } catch (error: any) {
+    console.error("Failed to fetch emails:", error.message || error);
     return { emails: [] };
   }
 }
