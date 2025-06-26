@@ -23,6 +23,7 @@ interface Email {
     | "Spam"
     | "Other"
     | "Unknown"
+    | "Flagged"
     | "Business Opportunity";
   userID: string;
 }

@@ -14,6 +14,7 @@ import {
   Settings,
   LogOut,
   Home,
+  Flag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { logoutAction } from "@/actions/auth";
@@ -67,6 +68,11 @@ const emailCategories = [
     title: "Unknown",
     url: "/?triage=Unknown",
     icon: QuestionMarkCircle,
+  },
+  {
+    title: "Flagged",
+    url: "/?triage=Flagged",
+    icon: Flag,
   },
 ];
 
