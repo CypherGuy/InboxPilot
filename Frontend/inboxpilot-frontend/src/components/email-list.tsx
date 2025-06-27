@@ -33,6 +33,16 @@ interface EmailListProps {
   initialEmails: Email[];
 }
 
+const triageColorMap: Record<Email["triage"], string> = {
+  Sales: "bg-orange-100 border-orange-300",
+  Job: "bg-blue-100 border-blue-300",
+  Spam: "bg-red-100 border-red-300",
+  Other: "bg-gray-100 border-gray-300",
+  Unknown: "bg-zinc-100 border-zinc-300",
+  Flagged: "bg-yellow-100 border-yellow-300",
+  "Business Opportunity": "bg-green-100 border-green-300",
+};
+
 export function EmailList({ initialEmails }: EmailListProps) {
   const searchParams = useSearchParams();
   const triageFilter = searchParams.get("triage");
@@ -103,7 +113,9 @@ export function EmailList({ initialEmails }: EmailListProps) {
           return (
             <Card
               key={email.emailId}
-              className="relative overflow-hidden group"
+              className={`relative overflow-hidden group border-2 ${
+                triageColorMap[email.triage]
+              }`}
             >
               {shouldBlur && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-sm pointer-events-none group-hover:backdrop-blur-0 group-hover:bg-transparent transition-all duration-200">
