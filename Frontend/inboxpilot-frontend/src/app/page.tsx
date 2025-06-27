@@ -6,17 +6,19 @@ import { EmailList } from "@/components/email-list";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams?: { triage?: string };
-}) {
+type Props = {
+  searchParams?: Record<string, string | string[] | undefined>;
+};
+
+export default async function DashboardPage({ searchParams }: Props) {
+  const triageFilter =
+    typeof searchParams?.triage === "string" ? searchParams.triage : undefined;
+
   const token = getAuthCookie();
   if (!token) {
     redirect("/login");
   }
 
-  const triageFilter = searchParams?.triage;
   const { emails } = await getEmailsAction(triageFilter);
 
   return (
