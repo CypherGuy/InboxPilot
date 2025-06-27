@@ -5,12 +5,15 @@ import json
 import uuid
 from datetime import datetime, timedelta
 from email.utils import parseaddr
+from boto3.dynamodb.conditions import Attr
 
 # AWS clients
 s3 = boto3.client("s3")
+ses = boto3.client("ses", region_name="eu-west-1")
 bedrock = boto3.client("bedrock-runtime", region_name="eu-west-1")
 dynamodb = boto3.resource("dynamodb")
 emails_table = dynamodb.Table("Emails")
+users_table = dynamodb.Table("Users")
 
 # Configuration
 MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
@@ -42,11 +45,29 @@ def lambda_handler(event, context):
     # Try to extract recipient from SES, fallback to email headers
     to_header = msg.get("to", "[Unknown recipient]")
     _, to_email_fallback = parseaddr(to_header)
-
     recipients = rec0.get("ses", {}).get("receipt", {}).get("recipients", [])
     to_email = recipients[0] if recipients else to_email_fallback
 
     triage, is_flagged = classify_email(subject, body)
+
+    if triage == "Business Opportunity":
+        try:
+            # Find user by proxy email, not userID
+            user_response = users_table.scan(
+                FilterExpression=Attr("proxyEmail").eq(to_email)
+            )
+            if user_response.get("Items"):
+                user_item = user_response["Items"][0]
+                reply_template = user_item.get(
+                    "replyTemplate", "Thanks for reaching out!")
+                proxy_email = user_item.get("proxyEmail", to_email)
+
+                send_reply_email(reply_from=proxy_email,
+                                 reply_to=sender_email, reply_body=reply_template)
+            else:
+                print(f"❌ No user found with proxyEmail = {to_email}")
+        except Exception as e:
+            print(f"❌ Error during auto-reply process: {e}")
 
     item = {
         "emailId": str(uuid.uuid4()),
@@ -84,7 +105,7 @@ def classify_email(subject, body):
         "You are a classification assistant. "
         "Categorize this email into exactly one of: Sales, Job, Spam, Business Opportunity, Other, or Unknown. "
         "If the email contains offensive or harmful content, choose Spam. "
-        "Only respond with the single label."
+        "Only respond with the single label in the exact case as how I wrote it before."
     )
 
     payload = {
@@ -105,7 +126,7 @@ def classify_email(subject, body):
     }
 
     try:
-        resp = bedrock.invoke_model(
+        response = bedrock.invoke_model(
             modelId=MODEL_ID,
             contentType="application/json",
             accept="application/json",
@@ -113,8 +134,36 @@ def classify_email(subject, body):
             guardrailVersion=GUARDRAIL_VERSION,
             body=json.dumps(payload),
         )
-        out = json.loads(resp["body"].read())
-        label = out["content"][0]["text"].strip()
+        raw_body = response["body"].read().decode()
+        print("📤 Claude raw response:", raw_body)
+        out = json.loads(raw_body)
+
+        if "content" in out and isinstance(out["content"], list):
+            label = out["content"][0].get("text", "").strip()
+        elif "completion" in out:
+            label = out["completion"].strip()
+        else:
+            label = "Unknown"
+
         return ("Flagged", True) if label.lower() == "flagged" else (label, False)
-    except:
+    except Exception as e:
+        print("❌ Error during classification:", str(e))
         return "Unknown", False
+
+
+def send_reply_email(reply_from, reply_to, reply_body):
+    try:
+        # Hardcoded verified sender
+        verified_sender = "noreply@inboxpilot.xyz"
+
+        ses.send_email(
+            Source=verified_sender,
+            Destination={"ToAddresses": [reply_to]},
+            ReplyToAddresses=[reply_from],
+            Message={
+                "Subject": {"Data": "Re: Business Opportunity"},
+                "Body": {"Text": {"Data": reply_body}},
+            },
+        )
+    except Exception as e:
+        print(f"❌ Failed to send auto-reply: {e}")
