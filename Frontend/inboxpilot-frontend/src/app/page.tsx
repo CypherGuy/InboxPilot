@@ -6,15 +6,11 @@ import { EmailList } from "@/components/email-list";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
-interface DashboardPageProps {
-  searchParams?: {
-    triage?: string;
-  };
-}
-
 export default async function DashboardPage({
   searchParams,
-}: DashboardPageProps) {
+}: {
+  searchParams?: { triage?: string };
+}) {
   const token = getAuthCookie();
   if (!token) {
     redirect("/login");
