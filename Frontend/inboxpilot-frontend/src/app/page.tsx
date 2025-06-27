@@ -1,16 +1,20 @@
 import { redirect } from "next/navigation";
 import { getAuthCookie } from "@/lib/auth";
-import { getEmailsAction } from "@/actions/data"; // This function fetches emails filtered by triage
+import { getEmailsAction } from "@/actions/data";
 
 import { EmailList } from "@/components/email-list";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
+interface DashboardPageProps {
+  searchParams?: {
+    triage?: string;
+  };
+}
+
 export default async function DashboardPage({
   searchParams,
-}: {
-  searchParams?: { triage?: string };
-}) {
+}: DashboardPageProps) {
   const token = getAuthCookie();
   if (!token) {
     redirect("/login");
@@ -26,6 +30,7 @@ export default async function DashboardPage({
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-xl font-semibold">Email Dashboard</h1>
       </header>
+
       <div className="flex-1 rounded-xl bg-muted/50 p-4">
         <EmailList initialEmails={emails} />
       </div>
