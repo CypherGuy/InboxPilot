@@ -48,9 +48,10 @@ export function EmailList({ initialEmails }: EmailListProps) {
   const triageFilter = searchParams.get("triage");
   const [emails, setEmails] = useState<Email[]>(initialEmails);
   const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   const fetchEmails = useCallback(async () => {
-    setLoading(true);
+    if (initialLoad) setLoading(true);
     try {
       const { emails: fetchedEmails } = await getEmailsAction(triageFilter);
       setEmails(fetchedEmails);
@@ -62,17 +63,22 @@ export function EmailList({ initialEmails }: EmailListProps) {
       setEmails([]);
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
-  }, [triageFilter]);
+  }, [triageFilter, initialLoad]);
 
   useEffect(() => {
-    // Only refetch if the filter changes or on interval. Fetches every 15s
+    // Only refetch if the filter changes or on interval. Fetches every 15s by default
     fetchEmails();
-    const interval = setInterval(fetchEmails, 15000);
+    const intervalSeconds = parseInt(
+      localStorage.getItem("refreshInterval") || "15",
+      10
+    );
+    const interval = setInterval(fetchEmails, intervalSeconds * 1000);
     return () => clearInterval(interval);
   }, [fetchEmails]);
 
-  if (loading) {
+  if (loading && initialLoad) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
@@ -103,7 +109,24 @@ export function EmailList({ initialEmails }: EmailListProps) {
   }
 
   return (
-    <ScrollArea className="h-[calc(100vh-120px)] rounded-md border p-4">
+    <ScrollArea className="h-[calc(100vh-120px)] rounded-md border p-4 relative">
+      {loading && !initialLoad && (
+        <div className="absolute top-2 right-4 z-50 animate-spin text-muted-foreground">
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M4 4v5h.582M20 20v-5h-.581M5 5l14 14"
+            />
+          </svg>
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {emails.map((email) => {
           const isFlagged = email.triage === "Flagged";

@@ -121,14 +121,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel>Settings</SidebarGroupLabel>
+          <SidebarGroupLabel>Preferences</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/settings"}>
                   <Link href="/settings" className="flex items-center gap-2">
                     <Settings />
-                    <span>Reply Template</span>
+                    <span>Settings</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
