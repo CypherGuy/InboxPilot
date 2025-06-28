@@ -150,6 +150,34 @@ def update_reply_handler(event, context):
     return make_response(200, {"message": "Reply template updated"})
 
 
+def update_triage_handler(event, context):
+    try:
+        body = json.loads(event["body"])
+        email_id = body.get("emailId")
+        new_triage = body.get("newTriage")
+
+        if not email_id or not new_triage:
+            return make_response(400, {"error": "Missing emailId or newTriage"})
+
+        # Validate triage category
+        allowed_triage_values: set[str] = {
+            "Sales", "Job", "Spam", "Other", "Unknown", "Offensive", "Flagged", "Business Opportunity"
+        }
+        if new_triage not in allowed_triage_values:
+            return make_response(400, {"error": f"Invalid triage category: {new_triage}"})
+
+        emails_table.update_item(
+            Key={"emailId": email_id},
+            UpdateExpression="SET triage = :t",
+            ExpressionAttributeValues={":t": new_triage}
+        )
+
+        return make_response(200, {"message": "Triage updated successfully"})
+
+    except Exception as e:
+        return make_response(500, {"error": "Internal server error", "details": str(e)})
+
+
 def lambda_handler(event, context):
     method = event.get("httpMethod")
     resource = event.get("resource")
@@ -168,5 +196,7 @@ def lambda_handler(event, context):
         return emails_handler(event, context)
     elif method == "POST" and resource == "/update-reply":
         return update_reply_handler(event, context)
+    elif method == "POST" and resource == "/update-triage":
+        return update_triage_handler(event, context)
     else:
         return make_response(404, {"error": "Route not found"})
