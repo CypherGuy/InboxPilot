@@ -41,13 +41,11 @@ export function ReplyTemplateForm({
       } else {
         toast("Error saving reply template", {
           description: message,
-          variant: "destructive",
         });
       }
     } catch (error: any) {
       toast("Error saving reply template", {
         description: error.message || "Failed to update reply message.",
-        variant: "destructive",
       });
     } finally {
       setSaving(false);

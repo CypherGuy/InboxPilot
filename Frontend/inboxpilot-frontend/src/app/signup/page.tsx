@@ -38,7 +38,6 @@ export default function SignupPage() {
       setError(result.message);
       toast("Signup Failed", {
         description: result.message,
-        variant: "destructive",
       });
     }
     // Should autoredirect to /login if successful

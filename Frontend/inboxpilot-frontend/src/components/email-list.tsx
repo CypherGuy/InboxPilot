@@ -58,7 +58,6 @@ export function EmailList({ initialEmails }: EmailListProps) {
     } catch (error: any) {
       toast("Error fetching emails", {
         description: error.message || "Could not load emails.",
-        variant: "destructive",
       });
       setEmails([]);
     } finally {
