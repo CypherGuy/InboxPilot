@@ -7,7 +7,7 @@ import {
   setUserIDCookie,
   setProxyEmailCookie,
   removeAuthCookie,
-} from "@/lib/auth"; // Corrected import path
+} from "@/lib/auth"; // Ensure these are async in your `auth.ts`
 
 const SERVER_AUTH_TOKEN = process.env.AUTH_TOKEN!;
 
@@ -26,12 +26,12 @@ export async function loginAction(formData: FormData) {
       return { success: false, message: "Invalid credentials." };
     }
 
-    setAuthCookie(SERVER_AUTH_TOKEN);
-    setUserIDCookie(res.user.userID);
-    setProxyEmailCookie(res.user.proxyEmail);
+    await setAuthCookie(SERVER_AUTH_TOKEN);
+    await setUserIDCookie(res.user.userID);
+    await setProxyEmailCookie(res.user.proxyEmail);
     redirect("/");
   } catch (error: any) {
-    console.error("Login failed:", error); // Debugging
+    console.error("Login failed:", error);
     return {
       success: false,
       message: error.message || "Login failed due to an unexpected error.",
@@ -59,12 +59,12 @@ export async function signupAction(formData: FormData) {
       return { success: false, message: "Signup failed: invalid response." };
     }
 
-    setAuthCookie(SERVER_AUTH_TOKEN);
-    setUserIDCookie(res.user.userID);
-    setProxyEmailCookie(res.user.proxyEmail);
+    await setAuthCookie(SERVER_AUTH_TOKEN);
+    await setUserIDCookie(res.user.userID);
+    await setProxyEmailCookie(res.user.proxyEmail);
     redirect("/");
   } catch (error: any) {
-    console.error("Signup failed:", error); // Debugging
+    console.error("Signup failed:", error);
     return {
       success: false,
       message: error.message || "Signup failed due to an unexpected error.",
@@ -73,6 +73,6 @@ export async function signupAction(formData: FormData) {
 }
 
 export async function logoutAction() {
-  removeAuthCookie();
+  await removeAuthCookie();
   redirect("/login");
 }

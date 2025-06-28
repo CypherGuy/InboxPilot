@@ -6,8 +6,8 @@ const TOKEN_KEY = "inboxpilot_auth_token";
 const USER_ID_KEY = "inboxpilot_user_id";
 const PROXY_EMAIL_KEY = "inboxpilot_proxy_email";
 
-export function setAuthCookie(token: string) {
-  cookies().set(TOKEN_KEY, token, {
+export async function setAuthCookie(token: string) {
+  (await cookies()).set(TOKEN_KEY, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -16,18 +16,19 @@ export function setAuthCookie(token: string) {
   });
 }
 
-export function getAuthCookie(): string | undefined {
-  return cookies().get(TOKEN_KEY)?.value;
+export async function getAuthCookie(): Promise<string | undefined> {
+  return (await cookies()).get(TOKEN_KEY)?.value;
 }
 
-export function removeAuthCookie() {
-  cookies().delete(TOKEN_KEY);
-  cookies().delete(USER_ID_KEY);
-  cookies().delete(PROXY_EMAIL_KEY);
+export async function removeAuthCookie() {
+  const store = await cookies();
+  store.delete(TOKEN_KEY);
+  store.delete(USER_ID_KEY);
+  store.delete(PROXY_EMAIL_KEY);
 }
 
-export function setUserIDCookie(userID: string) {
-  cookies().set(USER_ID_KEY, userID, {
+export async function setUserIDCookie(userID: string) {
+  (await cookies()).set(USER_ID_KEY, userID, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -36,12 +37,12 @@ export function setUserIDCookie(userID: string) {
   });
 }
 
-export function getUserIDCookie(): string | undefined {
-  return cookies().get(USER_ID_KEY)?.value;
+export async function getUserIDCookie(): Promise<string | undefined> {
+  return (await cookies()).get(USER_ID_KEY)?.value;
 }
 
-export function setProxyEmailCookie(email: string) {
-  cookies().set(PROXY_EMAIL_KEY, email, {
+export async function setProxyEmailCookie(email: string) {
+  (await cookies()).set(PROXY_EMAIL_KEY, email, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -50,6 +51,6 @@ export function setProxyEmailCookie(email: string) {
   });
 }
 
-export function getProxyEmailCookie(): string | undefined {
-  return cookies().get(PROXY_EMAIL_KEY)?.value;
+export async function getProxyEmailCookie(): Promise<string | undefined> {
+  return (await cookies()).get(PROXY_EMAIL_KEY)?.value;
 }
