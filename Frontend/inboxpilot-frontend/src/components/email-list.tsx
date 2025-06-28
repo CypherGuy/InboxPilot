@@ -23,12 +23,12 @@ interface EmailListProps {
 }
 
 const triageColorMap: Record<Email["triage"], string> = {
-  Sales: "bg-pink-100 border-pink-300",
+  Sales: "bg-amber-100 border-amber-300",
   Applications: "bg-blue-100 border-blue-300",
   Spam: "bg-red-100 border-red-300",
   Miscellaneous: "bg-gray-100 border-gray-300",
   Unsorted: "bg-zinc-100 border-zinc-300",
-  Offensive: "bg-yellow-200 border-yellow-400",
+  Offensive: "bg-gray-800 border-gray-900 text-white",
   Flagged: "bg-purple-200 border-purple-400",
   Partnerships: "bg-emerald-100 border-emerald-300",
 };
@@ -205,7 +205,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
                 <p className="text-xs text-muted-foreground mb-2">
                   Received: {new Date(email.timestamp).toLocaleString()}
                 </p>
-                <Separator className="my-2" />
+                <Separator className="my-2 border-gray-900" />
                 {(() => {
                   const isExpanded = expandedEmailIds.has(email.emailId);
                   const TRUNCATE_LIMIT = 150;
