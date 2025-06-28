@@ -6,6 +6,10 @@ import { EmailList } from "@/components/email-list";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
+type PageProps = {
+  searchParams?: Record<string, string | string[] | undefined>;
+};
+
 export default async function DashboardPage({
   searchParams,
 }: {
