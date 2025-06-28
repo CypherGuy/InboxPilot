@@ -93,6 +93,8 @@ export function EmailList({ initialEmails }: EmailListProps) {
 
   return (
     <ScrollArea className="h-[calc(100vh-120px)] rounded-md border p-4">
+      <p className="text-sm mb-2">View all your emails here!</p>
+
       {viewMode === "grid" ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {emails.map((email) => (
@@ -100,17 +102,17 @@ export function EmailList({ initialEmails }: EmailListProps) {
               key={email.emailId}
               className={`border ${triageColorMap[email.triage]}`}
             >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold">
+              <CardHeader>
+                <CardTitle className="mb-1">
                   {email.subject || "No Subject"}
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">{email.triage}</p>
-              </CardHeader>
-              <CardContent className="text-sm space-y-1">
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground mt-1">
                   From: {email.sender} ({email.fromEmail})
                 </p>
-                <p className="text-xs text-muted-foreground">
+              </CardHeader>
+              <CardContent className="text-sm">
+                <p className="text-xs text-muted-foreground mb-2">
                   Received: {new Date(email.timestamp).toLocaleString()}
                 </p>
                 <Separator className="my-2" />
