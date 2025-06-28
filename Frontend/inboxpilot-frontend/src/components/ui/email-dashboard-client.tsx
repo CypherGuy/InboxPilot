@@ -3,6 +3,7 @@
 import { useState } from "react";
 import ViewToggle, { ViewMode } from "@/components/ui/view-toggle";
 import { EmailList } from "@/components/email-list";
+import { Email } from "@/types/email";
 
 interface Props {
   initialEmails: Email[];
