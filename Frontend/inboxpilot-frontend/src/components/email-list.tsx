@@ -23,14 +23,14 @@ interface EmailListProps {
 }
 
 const triageColorMap: Record<Email["triage"], string> = {
-  Sales: "bg-orange-100 border-orange-300",
+  Sales: "bg-pink-100 border-pink-300",
   Applications: "bg-blue-100 border-blue-300",
   Spam: "bg-red-100 border-red-300",
   Miscellaneous: "bg-gray-100 border-gray-300",
   Unsorted: "bg-zinc-100 border-zinc-300",
-  Offensive: "bg-yellow-100 border-yellow-300",
-  Flagged: "bg-purple-100 border-purple-300",
-  Partnerships: "bg-green-100 border-green-300",
+  Offensive: "bg-yellow-200 border-yellow-400",
+  Flagged: "bg-purple-200 border-purple-400",
+  Partnerships: "bg-emerald-100 border-emerald-300",
 };
 
 export function EmailList({ initialEmails }: EmailListProps) {

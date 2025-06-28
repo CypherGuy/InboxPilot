@@ -102,11 +102,13 @@ def extract_body(msg):
 
 def classify_email(subject, body):
     system_prompt = (
-        "You are a classification assistant."
-        "Categorize this email into exactly one of: Sales, Applications, Spam, Partnerships, Miscellaneous, or Unsorted."
-        "If the email contains offensive or harmful content, choose 'Offensive' instead."
+        "You are a classification assistant. "
+        "Categorize this email into exactly one of: Sales, Applications, Spam, Partnerships, Miscellaneous, or Unsorted. "
+        "If the email contains abusive, threatening, or inappropriate content in a non-casual way, choose 'Offensive'."
+        "If it contains deceptive or scam-like content (e.g., phishing), choose 'Spam'."
         "Only respond with the single label in the exact case as how I wrote it before."
     )
+
     payload = {
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 70,
