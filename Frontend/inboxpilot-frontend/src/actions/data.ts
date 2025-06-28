@@ -58,8 +58,8 @@ export async function getEmailsAction(
 }
 
 export async function getReplyTemplateAction(): Promise<{ reply: string }> {
-  const token = getAuthCookie();
-  const userID = getUserIDCookie();
+  const token = await getAuthCookie();
+  const userID = await getUserIDCookie();
 
   if (!token || !userID) {
     redirect("/login");
@@ -82,8 +82,8 @@ export async function getReplyTemplateAction(): Promise<{ reply: string }> {
 export async function updateReplyTemplateAction(
   newTemplate: string
 ): Promise<{ success: boolean; message: string }> {
-  const token = getAuthCookie();
-  const userID = getUserIDCookie();
+  const token = await getAuthCookie();
+  const userID = await getUserIDCookie();
 
   if (!token || !userID) {
     redirect("/login");
