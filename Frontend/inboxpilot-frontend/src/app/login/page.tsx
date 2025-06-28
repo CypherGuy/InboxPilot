@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useFormStatus } from "react-dom";
+import { useState, FormEvent } from "react";
 import { loginAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,16 +14,27 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? "Logging in…" : "Login"}
-    </Button>
-  );
-}
-
 export default function LoginPage() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    const formData = new FormData(e.currentTarget);
+    const result = await loginAction(formData);
+
+    if (result.success) {
+      window.location.href = "/";
+    } else {
+      setError(result.message || "Login failed");
+    }
+
+    setLoading(false);
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-950">
       <Card className="mx-auto max-w-sm">
@@ -34,7 +45,7 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={loginAction} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="userID">Username</Label>
               <Input
@@ -59,7 +70,13 @@ export default function LoginPage() {
               <Input id="password" name="password" type="password" required />
             </div>
 
-            <SubmitButton />
+            {error && (
+              <p className="text-sm text-red-500 font-medium">{error}</p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Logging in…" : "Login"}
+            </Button>
           </form>
 
           <div className="mt-4 text-center text-sm">
