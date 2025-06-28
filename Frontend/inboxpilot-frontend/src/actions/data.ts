@@ -31,8 +31,8 @@ interface Email {
 export async function getEmailsAction(
   triageFilter?: string
 ): Promise<{ emails: Email[] }> {
-  const token = getAuthCookie();
-  const proxyEmail = getProxyEmailCookie();
+  const token = await getAuthCookie();
+  const proxyEmail = await getProxyEmailCookie();
 
   if (!token || !proxyEmail) {
     console.warn("Missing auth token or proxy email. Redirecting to login.");
