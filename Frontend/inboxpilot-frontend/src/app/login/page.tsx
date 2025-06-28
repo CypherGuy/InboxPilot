@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -27,9 +28,20 @@ export default function LoginPage() {
     const result = await loginAction(formData);
 
     if (result.success) {
+      toast.success("Login successful", {
+        description: "Redirecting to your dashboard...",
+      });
       window.location.href = "/";
     } else {
-      setError(result.message || "Login failed");
+      let errorMessage = result.message;
+      try {
+        const parsed = JSON.parse(result.message);
+        errorMessage = parsed.message || errorMessage;
+      } catch {}
+      setError(errorMessage);
+      toast.error("Login failed", {
+        description: errorMessage,
+      });
     }
 
     setLoading(false);
@@ -60,12 +72,6 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center">
                 <Label htmlFor="password">Password</Label>
-                <Link
-                  href="#"
-                  className="ml-auto inline-block text-sm underline"
-                >
-                  Forgot your password?
-                </Link>
               </div>
               <Input id="password" name="password" type="password" required />
             </div>

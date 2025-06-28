@@ -1,19 +1,21 @@
 import { redirect } from "next/navigation";
 import { getAuthCookie } from "@/lib/auth";
 import { getEmailsAction } from "@/actions/data";
-
 import { EmailList } from "@/components/email-list";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import ViewToggleClient from "@/components/ui/view-toggle";
 
 export default async function DashboardPage({ searchParams }: any) {
-  const triageFilter =
-    typeof searchParams?.triage === "string" ? searchParams.triage : undefined;
-
-  const token = getAuthCookie();
+  const token = await getAuthCookie();
   if (!token) {
     redirect("/login");
   }
+
+  const triageFilter =
+    typeof searchParams?.triage === "string"
+      ? await searchParams.triage
+      : undefined;
 
   const { emails } = await getEmailsAction(triageFilter);
 
@@ -23,6 +25,9 @@ export default async function DashboardPage({ searchParams }: any) {
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-xl font-semibold">Email Dashboard</h1>
+        <div className="ml-auto">
+          <ViewToggleClient />
+        </div>
       </header>
 
       <div className="flex-1 rounded-xl bg-muted/50 p-4">

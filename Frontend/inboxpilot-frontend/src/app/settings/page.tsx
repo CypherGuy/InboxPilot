@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 export default async function SettingsPage() {
-  const token = getAuthCookie();
+  const token = await getAuthCookie();
   if (!token) {
     redirect("/login"); // Ensure user is authenticated
   }
