@@ -90,14 +90,25 @@ def lambda_handler(event, context):
 
 
 def extract_body(msg):
+    text = None
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == "text/plain":
-                return part.get_content()
-        for part in msg.walk():
-            if part.get_content_type() == "text/html":
-                return part.get_content()
-    return msg.get_content()
+                text = part.get_content()
+                break
+        if not text:
+            for part in msg.walk():
+                if part.get_content_type() == "text/html":
+                    text = part.get_content()
+                    break
+    else:
+        text = msg.get_content()
+
+    if not text:
+        return ""
+
+    # Set all line endings to just "\n"
+    return text.replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
 def classify_email(subject, body):

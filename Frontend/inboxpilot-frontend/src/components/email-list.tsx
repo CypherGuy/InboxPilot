@@ -42,6 +42,17 @@ export function EmailList({ initialEmails }: EmailListProps) {
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   const [filter, setFilter] = useState<string>("All");
+  const [expandedEmailIds, setExpandedEmailIds] = useState<Set<string>>(
+    new Set()
+  );
+
+  const toggleExpand = (emailId: string) => {
+    setExpandedEmailIds((prev) => {
+      const updated = new Set(prev);
+      updated.has(emailId) ? updated.delete(emailId) : updated.add(emailId);
+      return updated;
+    });
+  };
 
   const fetchEmails = useCallback(async () => {
     if (initialLoad) setLoading(true);
@@ -134,49 +145,55 @@ export function EmailList({ initialEmails }: EmailListProps) {
           {filteredEmails.map((email) => (
             <Card
               key={email.emailId}
-              className={`relative group border ${
-                triageColorMap[email.triage]
-              }`}
+              className={`relative border ${triageColorMap[email.triage]}`}
             >
-              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                <button
-                  onClick={() =>
-                    handleTriageUpdate(
-                      email.emailId,
-                      email.timestamp,
-                      "Offensive"
-                    )
-                  }
-                  title="Mark as Offensive"
-                  className="text-xs p-1 rounded bg-yellow-500 hover:bg-yellow-600 text-white"
-                >
-                  <ShieldAlert className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() =>
-                    handleTriageUpdate(email.emailId, email.timestamp, "Spam")
-                  }
-                  title="Mark as Spam"
-                  className="text-xs p-1 rounded bg-red-500 hover:bg-red-600 text-white"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() =>
-                    handleTriageUpdate(
-                      email.emailId,
-                      email.timestamp,
-                      "Flagged"
-                    )
-                  }
-                  title="Mark as Flagged"
-                  className="text-xs p-1 rounded bg-green-500 hover:bg-green-600 text-white"
-                >
-                  <Flag className="w-4 h-4" />
-                </button>
-              </div>
-              <CardHeader>
-                <CardTitle>{email.subject || "No Subject"}</CardTitle>
+              <CardHeader className="space-y-1">
+                <div className="flex justify-between items-start gap-2">
+                  <CardTitle className="text-base font-semibold max-w-[85%]">
+                    {email.subject || "No Subject"}
+                  </CardTitle>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() =>
+                        handleTriageUpdate(
+                          email.emailId,
+                          email.timestamp,
+                          "Offensive"
+                        )
+                      }
+                      title="Mark as Offensive"
+                      className="text-xs p-1 rounded bg-yellow-500 hover:bg-yellow-600 text-white"
+                    >
+                      <ShieldAlert className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleTriageUpdate(
+                          email.emailId,
+                          email.timestamp,
+                          "Spam"
+                        )
+                      }
+                      title="Mark as Spam"
+                      className="text-xs p-1 rounded bg-red-500 hover:bg-red-600 text-white"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleTriageUpdate(
+                          email.emailId,
+                          email.timestamp,
+                          "Flagged"
+                        )
+                      }
+                      title="Mark as Flagged"
+                      className="text-xs p-1 rounded bg-green-500 hover:bg-green-600 text-white"
+                    >
+                      <Flag className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
                 <p className="text-xs text-muted-foreground italic">
                   {email.triage}
                 </p>
@@ -189,7 +206,27 @@ export function EmailList({ initialEmails }: EmailListProps) {
                   Received: {new Date(email.timestamp).toLocaleString()}
                 </p>
                 <Separator className="my-2" />
-                <p className="line-clamp-4">{email.body}</p>
+                {(() => {
+                  const isExpanded = expandedEmailIds.has(email.emailId);
+                  const TRUNCATE_LIMIT = 150;
+                  const shouldTruncate = email.body.length > TRUNCATE_LIMIT;
+                  const displayText = isExpanded
+                    ? email.body
+                    : email.body.slice(0, TRUNCATE_LIMIT);
+                  return (
+                    <>
+                      <p className="whitespace-pre-wrap">{displayText}</p>
+                      {shouldTruncate && (
+                        <button
+                          onClick={() => toggleExpand(email.emailId)}
+                          className="text-sm text-blue-600 underline mt-1"
+                        >
+                          {isExpanded ? "Show less" : "Show more"}
+                        </button>
+                      )}
+                    </>
+                  );
+                })()}
               </CardContent>
             </Card>
           ))}
