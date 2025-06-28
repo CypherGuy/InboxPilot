@@ -6,19 +6,13 @@ import { EmailList } from "@/components/email-list";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
-type PageProps = {
-  searchParams?: {
-    triage?: string;
-  };
-};
+interface PageProps {
+  searchParams?: Record<string, string | string[] | undefined>;
+}
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams?: { triage?: string };
-}) {
-  const triageFilter =
-    typeof searchParams?.triage === "string" ? searchParams.triage : undefined;
+export default async function DashboardPage({ searchParams }: PageProps) {
+  const triageRaw = searchParams?.triage;
+  const triageFilter = Array.isArray(triageRaw) ? triageRaw[0] : triageRaw;
 
   const token = getAuthCookie();
   if (!token) {
