@@ -29,7 +29,7 @@ export async function loginAction(formData: FormData) {
     await setAuthCookie(SERVER_AUTH_TOKEN);
     await setUserIDCookie(res.user.userID);
     await setProxyEmailCookie(res.user.proxyEmail);
-    redirect("/");
+    return { success: true };
   } catch (error: any) {
     console.error("Login failed:", error);
     return {
@@ -62,7 +62,7 @@ export async function signupAction(formData: FormData) {
     await setAuthCookie(SERVER_AUTH_TOKEN);
     await setUserIDCookie(res.user.userID);
     await setProxyEmailCookie(res.user.proxyEmail);
-    redirect("/");
+    return { success: true };
   } catch (error: any) {
     console.error("Signup failed:", error);
     return {
