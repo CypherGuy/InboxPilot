@@ -53,7 +53,8 @@ export function EmailList({ initialEmails }: EmailListProps) {
   const fetchEmails = useCallback(async () => {
     if (initialLoad) setLoading(true);
     try {
-      const { emails: fetchedEmails } = await getEmailsAction(triageFilter);
+      const safeTriageFilter = triageFilter ?? undefined;
+      const { emails: fetchedEmails } = await getEmailsAction(safeTriageFilter);
       setEmails(fetchedEmails);
     } catch (error: any) {
       toast("Error fetching emails", {
