@@ -8,12 +8,12 @@ export interface Email {
   toEmail: string;
   triage:
     | "Sales"
-    | "Job"
+    | "Applications"
     | "Spam"
-    | "Other"
-    | "Unknown"
+    | "Miscellaneous"
+    | "Unsorted"
     | "Offensive"
     | "Flagged"
-    | "Business Opportunity";
+    | "Partnerships";
   userID: string;
 }

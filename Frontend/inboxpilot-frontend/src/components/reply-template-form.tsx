@@ -57,8 +57,7 @@ export function ReplyTemplateForm({
       <CardHeader>
         <CardTitle>Default Reply Message</CardTitle>
         <CardDescription>
-          Update your default reply message for Business Opportunity-related
-          emails.
+          Update your default reply message for Partnerships-related emails.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

@@ -162,8 +162,10 @@ def update_triage_handler(event, context):
 
         # Validate triage category
         allowed_triage_values: set[str] = {
-            "Sales", "Job", "Spam", "Other", "Unknown", "Offensive", "Flagged", "Business Opportunity"
+            "Sales", "Applications", "Spam", "Partnerships",
+            "Miscellaneous", "Unsorted", "Offensive"
         }
+
         if new_triage not in allowed_triage_values:
             return make_response(400, {"error": f"Invalid triage category: {new_triage}"})
 
@@ -173,11 +175,15 @@ def update_triage_handler(event, context):
                 "timestamp": timestamp
             },
             UpdateExpression="SET triage = :t",
-            ExpressionAttributeValues={":t": new_triage}
+            ExpressionAttributeValues={":t": new_triage},
+            ConditionExpression="attribute_exists(emailId) AND attribute_exists(#ts)",
+            ExpressionAttributeNames={"#ts": "timestamp"}
         )
 
         return make_response(200, {"message": "Triage updated successfully"})
 
+    except emails_table.meta.client.exceptions.ConditionalCheckFailedException:
+        return make_response(404, {"error": "Email not found — check ID and timestamp"})
     except Exception as e:
         return make_response(500, {"error": "Internal server error", "details": str(e)})
 

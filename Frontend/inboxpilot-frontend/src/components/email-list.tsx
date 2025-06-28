@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Fragment, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { getEmailsAction } from "@/actions/data";
+import { getEmailsAction, updateTriageAction } from "@/actions/data";
 import { Email } from "@/types/email";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ShieldAlert, Trash2, Flag } from "lucide-react";
 
 interface EmailListProps {
   initialEmails: Email[];
@@ -23,13 +24,13 @@ interface EmailListProps {
 
 const triageColorMap: Record<Email["triage"], string> = {
   Sales: "bg-orange-100 border-orange-300",
-  Job: "bg-blue-100 border-blue-300",
+  Applications: "bg-blue-100 border-blue-300",
   Spam: "bg-red-100 border-red-300",
-  Other: "bg-gray-100 border-gray-300",
-  Unknown: "bg-zinc-100 border-zinc-300",
+  Miscellaneous: "bg-gray-100 border-gray-300",
+  Unsorted: "bg-zinc-100 border-zinc-300",
   Offensive: "bg-yellow-100 border-yellow-300",
   Flagged: "bg-purple-100 border-purple-300",
-  "Business Opportunity": "bg-green-100 border-green-300",
+  Partnerships: "bg-green-100 border-green-300",
 };
 
 export function EmailList({ initialEmails }: EmailListProps) {
@@ -70,6 +71,16 @@ export function EmailList({ initialEmails }: EmailListProps) {
     return () => clearInterval(interval);
   }, [fetchEmails]);
 
+  const handleTriageUpdate = async (
+    emailId: string,
+    timestamp: string,
+    newTriage: Email["triage"]
+  ) => {
+    await updateTriageAction(emailId, timestamp, newTriage);
+    toast.success(`Marked as ${newTriage}`);
+    fetchEmails();
+  };
+
   const filteredEmails = emails
     .filter((email) => filter === "All" || email.triage === filter)
     .sort(
@@ -83,7 +94,6 @@ export function EmailList({ initialEmails }: EmailListProps) {
         <h2 className="text-muted-foreground">View all your emails here!</h2>
         <Select value={filter} onValueChange={setFilter}>
           <SelectTrigger className="w-[220px] border border-black">
-            {/* Solid black border s*/}
             <SelectValue placeholder="Filter by Triage" />
           </SelectTrigger>
           <SelectContent>
@@ -124,8 +134,47 @@ export function EmailList({ initialEmails }: EmailListProps) {
           {filteredEmails.map((email) => (
             <Card
               key={email.emailId}
-              className={`border ${triageColorMap[email.triage]}`}
+              className={`relative group border ${
+                triageColorMap[email.triage]
+              }`}
             >
+              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                <button
+                  onClick={() =>
+                    handleTriageUpdate(
+                      email.emailId,
+                      email.timestamp,
+                      "Offensive"
+                    )
+                  }
+                  title="Mark as Offensive"
+                  className="text-xs p-1 rounded bg-yellow-500 hover:bg-yellow-600 text-white"
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() =>
+                    handleTriageUpdate(email.emailId, email.timestamp, "Spam")
+                  }
+                  title="Mark as Spam"
+                  className="text-xs p-1 rounded bg-red-500 hover:bg-red-600 text-white"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() =>
+                    handleTriageUpdate(
+                      email.emailId,
+                      email.timestamp,
+                      "Flagged"
+                    )
+                  }
+                  title="Mark as Flagged"
+                  className="text-xs p-1 rounded bg-green-500 hover:bg-green-600 text-white"
+                >
+                  <Flag className="w-4 h-4" />
+                </button>
+              </div>
               <CardHeader>
                 <CardTitle>{email.subject || "No Subject"}</CardTitle>
                 <p className="text-xs text-muted-foreground italic">
@@ -155,11 +204,12 @@ export function EmailList({ initialEmails }: EmailListProps) {
                 <th className="px-4 py-2">To</th>
                 <th className="px-4 py-2">Triage</th>
                 <th className="px-4 py-2">Timestamp</th>
+                <th className="px-4 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredEmails.map((email, index) => (
-                <>
+              {filteredEmails.map((email) => (
+                <Fragment key={email.emailId}>
                   <tr
                     className={`${
                       triageColorMap[email.triage]
@@ -177,14 +227,55 @@ export function EmailList({ initialEmails }: EmailListProps) {
                     <td className="px-4 py-3 border border-gray-300">
                       {email.triage}
                     </td>
-                    <td className="px-4 py-3 border border-gray-300 rounded-r-md">
+                    <td className="px-4 py-3 border border-gray-300">
                       {new Date(email.timestamp).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 border border-gray-300 flex gap-1">
+                      <button
+                        onClick={() =>
+                          handleTriageUpdate(
+                            email.emailId,
+                            email.timestamp,
+                            "Offensive"
+                          )
+                        }
+                        title="Mark as Offensive"
+                        className="text-xs p-1 rounded bg-yellow-500 hover:bg-yellow-600 text-white"
+                      >
+                        <ShieldAlert className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleTriageUpdate(
+                            email.emailId,
+                            email.timestamp,
+                            "Spam"
+                          )
+                        }
+                        title="Mark as Spam"
+                        className="text-xs p-1 rounded bg-red-500 hover:bg-red-600 text-white"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleTriageUpdate(
+                            email.emailId,
+                            email.timestamp,
+                            "Flagged"
+                          )
+                        }
+                        title="Mark as Flagged"
+                        className="text-xs p-1 rounded bg-green-500 hover:bg-green-600 text-white"
+                      >
+                        <Flag className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                   <tr>
-                    <td colSpan={5} className="h-2"></td>
+                    <td colSpan={6} className="h-2"></td>
                   </tr>
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

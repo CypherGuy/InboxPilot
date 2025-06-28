@@ -102,12 +102,11 @@ def extract_body(msg):
 
 def classify_email(subject, body):
     system_prompt = (
-        "You are a classification assistant. "
-        "Categorize this email into exactly one of: Sales, Job, Spam, Business Opportunity, Other, or Unknown. "
-        "If the email contains offensive or harmful content, choose Spam. "
+        "You are a classification assistant."
+        "Categorize this email into exactly one of: Sales, Applications, Spam, Partnerships, Miscellaneous, or Unsorted."
+        "If the email contains offensive or harmful content, choose 'Offensive' instead."
         "Only respond with the single label in the exact case as how I wrote it before."
     )
-
     payload = {
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 70,
@@ -153,7 +152,6 @@ def classify_email(subject, body):
 
 def send_reply_email(reply_from, reply_to, reply_body):
     try:
-        # Hardcoded verified sender
         verified_sender = "noreply@inboxpilot.xyz"
 
         ses.send_email(

@@ -19,13 +19,13 @@ interface Email {
   toEmail: string;
   triage:
     | "Sales"
-    | "Job"
+    | "Applications"
     | "Spam"
-    | "Other"
-    | "Unknown"
+    | "Miscellaneous"
+    | "Unsorted"
     | "Offensive"
     | "Flagged"
-    | "Business Opportunity";
+    | "Partnerships";
   userID: string;
 }
 
@@ -115,4 +115,34 @@ export async function updateReplyTemplateAction(
       message: error.message || "Failed to update reply message.",
     };
   }
+}
+
+export async function updateTriageAction(
+  emailId: string,
+  timestamp: string,
+  newTriage: string
+) {
+  const token = await getAuthCookie();
+
+  if (!token) {
+    redirect("/login");
+  }
+
+  const res = await fetch(
+    "https://pupen0cr3i.execute-api.eu-west-1.amazonaws.com/prod/update-triage",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: token,
+      },
+      body: JSON.stringify({ emailId, timestamp, newTriage }),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error("Failed to update triage");
+  }
+
+  return await res.json();
 }

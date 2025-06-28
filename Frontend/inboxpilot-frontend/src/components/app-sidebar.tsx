@@ -46,13 +46,13 @@ const emailCategories = [
     icon: Mail,
   },
   {
-    title: "Job",
-    url: "/?triage=Job",
+    title: "Applications",
+    url: "/?triage=Applications",
     icon: Briefcase,
   },
   {
-    title: "Business Opportunity",
-    url: "/?triage=Business Opportunity",
+    title: "Partnerships",
+    url: "/?triage=Partnerships",
     icon: Tag,
   },
   {
@@ -61,13 +61,13 @@ const emailCategories = [
     icon: Spam,
   },
   {
-    title: "Other",
-    url: "/?triage=Other",
+    title: "Miscellaneous",
+    url: "/?triage=Miscellaneous",
     icon: HelpCircle,
   },
   {
-    title: "Unknown",
-    url: "/?triage=Unknown",
+    title: "Unsorted",
+    url: "/?triage=Unsorted",
     icon: QuestionMarkCircle,
   },
   {
