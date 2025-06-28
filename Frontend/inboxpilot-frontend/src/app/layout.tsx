@@ -25,11 +25,10 @@ export default async function RootLayout({
 }) {
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get("sidebar:state")?.value === "true";
-  const isAuthenticated = !!getAuthCookie();
+  const isAuthenticated = !!cookieStore.get("inboxpilot_auth_token")?.value;
 
   return (
     <html lang="en" suppressHydrationWarning>
-      {" "}
       <body
         className={cn(
           "min-h-screen bg-background font-sans antialiased",
