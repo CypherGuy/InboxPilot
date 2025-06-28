@@ -9,6 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface EmailListProps {
   initialEmails: Email[];
@@ -26,18 +33,19 @@ const triageColorMap: Record<Email["triage"], string> = {
 
 export function EmailList({ initialEmails }: EmailListProps) {
   const searchParams = useSearchParams();
-  const triageFilter = searchParams.get("triage");
+  const serverFilter = searchParams.get("triage");
   const viewMode = (searchParams.get("view") || "table") as "grid" | "table";
 
   const [emails, setEmails] = useState<Email[]>(initialEmails);
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [filter, setFilter] = useState<string>("All");
 
   const fetchEmails = useCallback(async () => {
     if (initialLoad) setLoading(true);
     try {
       const { emails: fetchedEmails } = await getEmailsAction(
-        triageFilter ?? undefined
+        serverFilter ?? undefined
       );
       setEmails(fetchedEmails);
     } catch (error: any) {
@@ -49,7 +57,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
       setLoading(false);
       setInitialLoad(false);
     }
-  }, [triageFilter, initialLoad]);
+  }, [serverFilter, initialLoad]);
 
   useEffect(() => {
     fetchEmails();
@@ -61,53 +69,68 @@ export function EmailList({ initialEmails }: EmailListProps) {
     return () => clearInterval(interval);
   }, [fetchEmails]);
 
-  if (loading && initialLoad) {
-    return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <Skeleton className="h-6 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-[80%]" />
-              <Skeleton className="h-4 w-[90%]" />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+  const filteredEmails = emails
+    .filter((email) => filter === "All" || email.triage === filter)
+    .sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
-  }
-
-  if (emails.length === 0) {
-    return (
-      <div className="flex h-64 items-center justify-center rounded-lg border border-dashed">
-        <p className="text-muted-foreground">
-          No emails found for this category.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <ScrollArea className="h-[calc(100vh-120px)] rounded-md border p-4">
-      <p className="text-sm mb-2">View all your emails here!</p>
+      <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+        <h2 className="text-muted-foreground">View all your emails here!</h2>
+        <Select value={filter} onValueChange={setFilter}>
+          <SelectTrigger className="w-[220px] border border-black">
+            {/* Solid black border s*/}
+            <SelectValue placeholder="Filter by Triage" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All</SelectItem>
+            {Object.keys(triageColorMap).map((key) => (
+              <SelectItem key={key} value={key}>
+                {key}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {viewMode === "grid" ? (
+      {loading && initialLoad ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {emails.map((email) => (
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-[80%]" />
+                <Skeleton className="h-4 w-[90%]" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : filteredEmails.length === 0 ? (
+        <div className="flex h-64 items-center justify-center rounded-lg border border-dashed">
+          <p className="text-muted-foreground">
+            No emails found for this category.
+          </p>
+        </div>
+      ) : viewMode === "grid" ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredEmails.map((email) => (
             <Card
               key={email.emailId}
               className={`border ${triageColorMap[email.triage]}`}
             >
               <CardHeader>
-                <CardTitle className="mb-1">
-                  {email.subject || "No Subject"}
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">{email.triage}</p>
-                <p className="text-sm text-muted-foreground mt-1">
+                <CardTitle>{email.subject || "No Subject"}</CardTitle>
+                <p className="text-xs text-muted-foreground italic">
+                  {email.triage}
+                </p>
+                <p className="text-sm text-muted-foreground">
                   From: {email.sender} ({email.fromEmail})
                 </p>
               </CardHeader>
@@ -134,20 +157,33 @@ export function EmailList({ initialEmails }: EmailListProps) {
               </tr>
             </thead>
             <tbody>
-              {emails.map((email) => (
-                <tr key={email.emailId} className="border-t hover:bg-muted/50">
-                  <td className="px-4 py-2 font-medium">
-                    {email.subject || "No Subject"}
-                  </td>
-                  <td className="px-4 py-2">
-                    {email.sender} ({email.fromEmail})
-                  </td>
-                  <td className="px-4 py-2">{email.toEmail}</td>
-                  <td className="px-4 py-2">{email.triage}</td>
-                  <td className="px-4 py-2">
-                    {new Date(email.timestamp).toLocaleString()}
-                  </td>
-                </tr>
+              {filteredEmails.map((email, index) => (
+                <>
+                  <tr
+                    className={`${
+                      triageColorMap[email.triage]
+                    } border border-gray-300`}
+                  >
+                    <td className="px-4 py-3 font-medium border border-gray-300 rounded-l-md">
+                      {email.subject || "No Subject"}
+                    </td>
+                    <td className="px-4 py-3 border border-gray-300">
+                      {email.sender} ({email.fromEmail})
+                    </td>
+                    <td className="px-4 py-3 border border-gray-300">
+                      {email.toEmail}
+                    </td>
+                    <td className="px-4 py-3 border border-gray-300">
+                      {email.triage}
+                    </td>
+                    <td className="px-4 py-3 border border-gray-300 rounded-r-md">
+                      {new Date(email.timestamp).toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colSpan={5} className="h-2"></td>
+                  </tr>
+                </>
               ))}
             </tbody>
           </table>
