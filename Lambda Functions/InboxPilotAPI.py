@@ -154,10 +154,11 @@ def update_triage_handler(event, context):
     try:
         body = json.loads(event["body"])
         email_id = body.get("emailId")
+        timestamp = body.get("timestamp")
         new_triage = body.get("newTriage")
 
-        if not email_id or not new_triage:
-            return make_response(400, {"error": "Missing emailId or newTriage"})
+        if not email_id or not timestamp or not new_triage:
+            return make_response(400, {"error": "Missing emailId, timestamp, or newTriage"})
 
         # Validate triage category
         allowed_triage_values: set[str] = {
@@ -167,7 +168,10 @@ def update_triage_handler(event, context):
             return make_response(400, {"error": f"Invalid triage category: {new_triage}"})
 
         emails_table.update_item(
-            Key={"emailId": email_id},
+            Key={
+                "emailId": email_id,
+                "timestamp": timestamp
+            },
             UpdateExpression="SET triage = :t",
             ExpressionAttributeValues={":t": new_triage}
         )
