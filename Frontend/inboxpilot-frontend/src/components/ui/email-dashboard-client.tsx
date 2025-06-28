@@ -16,7 +16,7 @@ export default function EmailDashboardClient({ initialEmails }: Props) {
     <div className="flex-1 rounded-xl bg-muted/50 p-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold">Emails</h2>
-        <ViewToggle view={view} onChange={setView} />
+        <ViewToggle />
       </div>
 
       <EmailList initialEmails={initialEmails} />
