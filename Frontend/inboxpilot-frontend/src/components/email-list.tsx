@@ -27,16 +27,7 @@ const triageColorMap: Record<Email["triage"], string> = {
 export function EmailList({ initialEmails }: EmailListProps) {
   const searchParams = useSearchParams();
   const triageFilter = searchParams.get("triage");
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
-
-  useEffect(() => {
-    const param = searchParams.get("view");
-    if (param === "grid" || param === "table") {
-      setViewMode(param);
-    } else {
-      setViewMode("grid"); // default
-    }
-  }, [searchParams]);
+  const viewMode = (searchParams.get("view") || "table") as "grid" | "table";
 
   const [emails, setEmails] = useState<Email[]>(initialEmails);
   const [loading, setLoading] = useState(false);
@@ -109,14 +100,17 @@ export function EmailList({ initialEmails }: EmailListProps) {
               key={email.emailId}
               className={`border ${triageColorMap[email.triage]}`}
             >
-              <CardHeader>
-                <CardTitle>{email.subject || "No Subject"}</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">
+                  {email.subject || "No Subject"}
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">{email.triage}</p>
+              </CardHeader>
+              <CardContent className="text-sm space-y-1">
                 <p className="text-sm text-muted-foreground">
                   From: {email.sender} ({email.fromEmail})
                 </p>
-              </CardHeader>
-              <CardContent className="text-sm">
-                <p className="text-xs text-muted-foreground mb-2">
+                <p className="text-xs text-muted-foreground">
                   Received: {new Date(email.timestamp).toLocaleString()}
                 </p>
                 <Separator className="my-2" />

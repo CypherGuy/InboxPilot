@@ -1,42 +1,42 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { Table, LayoutGrid } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export type ViewMode = "grid" | "table";
 
 export default function ViewToggle() {
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [value, setValue] = useState<ViewMode>("table");
 
-  // Sync state from URL
   useEffect(() => {
-    const view = searchParams.get("view");
-    if (view === "table" || view === "grid") {
-      setViewMode(view);
+    const current = searchParams.get("view");
+    if (current === "grid" || current === "table") {
+      setValue(current);
+    } else {
+      setValue("table");
     }
   }, [searchParams]);
 
-  const handleChange = (value: ViewMode) => {
-    if (!value) return;
+  const handleChange = (val: string) => {
+    if (val !== "grid" && val !== "table") return;
 
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("view", value);
-    router.push(`?${params.toString()}`);
-    setViewMode(value);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set("view", val);
+    router.replace(`?${newParams.toString()}`);
   };
 
   return (
-    <ToggleGroup type="single" value={viewMode} onValueChange={handleChange}>
-      <ToggleGroupItem value="grid" aria-label="Grid View">
-        <LayoutGrid className="h-4 w-4" />
-      </ToggleGroupItem>
+    <ToggleGroup type="single" value={value} onValueChange={handleChange}>
       <ToggleGroupItem value="table" aria-label="Table View">
         <Table className="h-4 w-4" />
+      </ToggleGroupItem>
+      <ToggleGroupItem value="grid" aria-label="Grid View">
+        <LayoutGrid className="h-4 w-4" />
       </ToggleGroupItem>
     </ToggleGroup>
   );
