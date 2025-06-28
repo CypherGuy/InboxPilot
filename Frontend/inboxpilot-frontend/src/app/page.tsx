@@ -6,11 +6,7 @@ import { EmailList } from "@/components/email-list";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
-type Props = {
-  searchParams?: Record<string, string | string[] | undefined>;
-};
-
-export default async function DashboardPage({ searchParams }: Props) {
+export default async function DashboardPage({ searchParams }: any) {
   const triageFilter =
     typeof searchParams?.triage === "string" ? searchParams.triage : undefined;
 
