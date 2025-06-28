@@ -27,7 +27,8 @@ const triageColorMap: Record<Email["triage"], string> = {
   Spam: "bg-red-100 border-red-300",
   Other: "bg-gray-100 border-gray-300",
   Unknown: "bg-zinc-100 border-zinc-300",
-  Flagged: "bg-yellow-100 border-yellow-300",
+  Offensive: "bg-yellow-100 border-yellow-300",
+  Flagged: "bg-purple-100 border-purple-300",
   "Business Opportunity": "bg-green-100 border-green-300",
 };
 

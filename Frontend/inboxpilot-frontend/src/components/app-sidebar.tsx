@@ -15,6 +15,7 @@ import {
   LogOut,
   Home,
   Flag,
+  MessageSquareWarning,
 } from "lucide-react";
 import { toast } from "sonner";
 import { logoutAction } from "@/actions/auth";
@@ -68,6 +69,11 @@ const emailCategories = [
     title: "Unknown",
     url: "/?triage=Unknown",
     icon: QuestionMarkCircle,
+  },
+  {
+    title: "Offensive",
+    url: "/?triage=Offensive",
+    icon: MessageSquareWarning,
   },
   {
     title: "Flagged",

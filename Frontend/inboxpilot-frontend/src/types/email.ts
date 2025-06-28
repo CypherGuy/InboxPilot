@@ -12,6 +12,7 @@ export interface Email {
     | "Spam"
     | "Other"
     | "Unknown"
+    | "Offensive"
     | "Flagged"
     | "Business Opportunity";
   userID: string;

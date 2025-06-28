@@ -48,7 +48,7 @@ def lambda_handler(event, context):
     recipients = rec0.get("ses", {}).get("receipt", {}).get("recipients", [])
     to_email = recipients[0] if recipients else to_email_fallback
 
-    triage, is_flagged = classify_email(subject, body)
+    triage, is_offensive = classify_email(subject, body)
 
     if triage == "Business Opportunity":
         try:
@@ -81,7 +81,7 @@ def lambda_handler(event, context):
         "timestamp": datetime.utcnow().isoformat()
     }
 
-    if is_flagged:
+    if is_offensive:
         item["expirationTime"] = int(
             (datetime.utcnow() + timedelta(days=30)).timestamp())
 
@@ -145,7 +145,7 @@ def classify_email(subject, body):
         else:
             label = "Unknown"
 
-        return ("Flagged", True) if label.lower() == "flagged" else (label, False)
+        return ("Offensive", True) if label.lower() == "offensive" else (label, False)
     except Exception as e:
         print("❌ Error during classification:", str(e))
         return "Unknown", False
