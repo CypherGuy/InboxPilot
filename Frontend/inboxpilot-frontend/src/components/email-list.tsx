@@ -61,6 +61,9 @@ export function EmailList({ initialEmails }: EmailListProps) {
 
   const fetchEmails = useCallback(async () => {
     if (initialLoad) setLoading(true);
+
+    console.log(`fetchEmails at ${new Date().toLocaleTimeString()}`);
+
     try {
       const { emails: fetched } = await getEmailsAction(
         serverFilter ?? undefined,
@@ -147,35 +150,34 @@ export function EmailList({ initialEmails }: EmailListProps) {
         </Select>
       </div>
 
-      <ScrollArea className="h-[calc(100vh-128px)]">
-        {loading && initialLoad && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-6 w-3/4" />
-                  <Skeleton className="h-4 w-1/2" />
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-[80%]" />
-                  <Skeleton className="h-4 w-[90%]" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+      {loading && initialLoad && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-[80%]" />
+                <Skeleton className="h-4 w-[90%]" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+      {loading && !initialLoad && (
+        <div className="flex flex-col items-center justify-center h-64 space-y-2">
+          <Loader2 className="w-8 h-8 animate-spin" />
+          <p className="text-sm text-muted-foreground">
+            Filtering, please wait...
+          </p>
+        </div>
+      )}
 
-        {loading && !initialLoad && (
-          <div className="flex flex-col items-center justify-center h-64 space-y-2">
-            <Loader2 className="w-8 h-8 animate-spin" />
-            <p className="text-sm text-muted-foreground">
-              Filtering, please wait...
-            </p>
-          </div>
-        )}
-
-        {!loading && (
+      {!loading && (
+        <ScrollArea className="h-[calc(100vh-128px)]">
           <div className="overflow-auto">
             {filtered.length === 0 ? (
               <div className="flex h-64 items-center justify-center rounded-lg border-dashed border">
@@ -257,7 +259,8 @@ export function EmailList({ initialEmails }: EmailListProps) {
                           minute: "2-digit",
                           second: "2-digit",
                           hour12: false,
-                        })}
+                        })}{" "}
+                        UTC
                       </p>
                       <Separator className="my-2 border-gray-900" />
                       {(() => {
@@ -317,7 +320,8 @@ export function EmailList({ initialEmails }: EmailListProps) {
                           minute: "2-digit",
                           second: "2-digit",
                           hour12: false,
-                        })}
+                        })}{" "}
+                        UTC
                       </td>
                       <td className="px-4 py-3 flex justify-center items-center gap-2">
                         <ShieldAlert className="w-5 h-5 text-yellow-500" />
@@ -330,8 +334,8 @@ export function EmailList({ initialEmails }: EmailListProps) {
               </table>
             )}
           </div>
-        )}
-      </ScrollArea>
+        </ScrollArea>
+      )}
     </div>
   );
 }

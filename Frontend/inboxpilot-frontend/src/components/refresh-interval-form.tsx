@@ -22,7 +22,7 @@ export function RefreshIntervalForm() {
         value={value}
         onChange={(e) => setValue(e.target.value)}
       >
-        {["15", "30", "60", "120", "300", "600"].map((sec) => (
+        {["5", "15", "30", "60", "120", "300", "600"].map((sec) => (
           <option key={sec} value={sec}>
             {Number(sec) < 60
               ? `${sec} seconds`
