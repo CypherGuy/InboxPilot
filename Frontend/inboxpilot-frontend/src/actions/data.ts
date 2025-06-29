@@ -30,10 +30,13 @@ interface Email {
 }
 
 export async function getEmailsAction(
-  triageFilter?: string
+  triageFilter?: string,
+  newOnly: boolean = false
 ): Promise<{ emails: Email[] }> {
   const token = await getAuthCookie();
   const proxyEmail = await getProxyEmailCookie();
+  const userID = await getUserIDCookie(); // Reads from server-side
+  if (!userID) throw new Error("Missing userID");
 
   if (!token || !proxyEmail) {
     console.warn("Missing auth token or proxy email. Redirecting to login.");
@@ -43,7 +46,11 @@ export async function getEmailsAction(
   try {
     let endpoint = `/emails?toEmail=${encodeURIComponent(proxyEmail)}`;
     if (triageFilter && triageFilter !== "All Emails") {
-      endpoint += `&triage=${triageFilter}`;
+      endpoint += `&triage=${encodeURIComponent(triageFilter)}`;
+    }
+
+    if (newOnly) {
+      endpoint += `&new=true`;
     }
     const data = await apiRequest(endpoint, "GET", undefined, token);
 
@@ -134,7 +141,7 @@ export async function updateTriageAction(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: token,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ emailId, timestamp, newTriage }),
     }
