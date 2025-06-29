@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getAuthCookie } from "@/lib/auth";
+import { getAuthCookie, getUserIDCookie } from "@/lib/auth.server";
 import { getEmailsAction } from "@/actions/data";
 import { EmailList } from "@/components/email-list";
 import { Separator } from "@/components/ui/separator";
@@ -8,6 +8,7 @@ import ViewToggleClient from "@/components/ui/view-toggle";
 
 export default async function DashboardPage({ searchParams }: any) {
   const token = await getAuthCookie();
+  const userID = await getUserIDCookie();
   if (!token) {
     redirect("/login");
   }
@@ -31,7 +32,7 @@ export default async function DashboardPage({ searchParams }: any) {
       </header>
 
       <div className="flex-1 rounded-xl bg-muted/50 p-4">
-        <EmailList initialEmails={emails} />
+        <EmailList initialEmails={emails} userID={userID} />
       </div>
     </div>
   );

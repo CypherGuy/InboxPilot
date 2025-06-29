@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getAuthCookie } from "@/lib/auth";
+import { getAuthCookie } from "@/lib/auth.server";
 import { getReplyTemplateAction } from "@/actions/data";
 
 import { ReplyTemplateForm } from "@/components/reply-template-form";

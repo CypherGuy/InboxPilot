@@ -5,7 +5,7 @@ import {
   getAuthCookie,
   getUserIDCookie,
   getProxyEmailCookie,
-} from "@/lib/auth";
+} from "@/lib/auth.server";
 import { redirect } from "next/navigation";
 
 // Email defined as in DynamoDB

@@ -4,6 +4,8 @@ import { Fragment, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { getEmailsAction, updateTriageAction } from "@/actions/data";
+import { apiRequest } from "@/lib/api";
+import { getAuthToken, getUserID } from "@/lib/auth.client";
 import { Email } from "@/types/email";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -16,7 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ShieldAlert, Trash2, Flag } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ShieldAlert, Trash2, Flag, Loader2 } from "lucide-react";
 
 interface EmailListProps {
   initialEmails: Email[];
@@ -42,28 +45,30 @@ export function EmailList({ initialEmails }: EmailListProps) {
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   const [filter, setFilter] = useState<string>("All");
+  const [query, setQuery] = useState<string>("");
   const [expandedEmailIds, setExpandedEmailIds] = useState<Set<string>>(
     new Set()
   );
 
   const toggleExpand = (emailId: string) => {
     setExpandedEmailIds((prev) => {
-      const updated = new Set(prev);
-      updated.has(emailId) ? updated.delete(emailId) : updated.add(emailId);
-      return updated;
+      const next = new Set(prev);
+      if (next.has(emailId)) next.delete(emailId);
+      else next.add(emailId);
+      return next;
     });
   };
 
   const fetchEmails = useCallback(async () => {
     if (initialLoad) setLoading(true);
     try {
-      const { emails: fetchedEmails } = await getEmailsAction(
+      const { emails: fetched } = await getEmailsAction(
         serverFilter ?? undefined
       );
-      setEmails(fetchedEmails);
-    } catch (error: any) {
-      toast("Error fetching emails", {
-        description: error.message || "Could not load emails.",
+      setEmails(fetched);
+    } catch (err: any) {
+      toast.error("Error fetching emails", {
+        description: err.message || "Could not load emails.",
       });
       setEmails([]);
     } finally {
@@ -74,51 +79,74 @@ export function EmailList({ initialEmails }: EmailListProps) {
 
   useEffect(() => {
     fetchEmails();
-    const intervalSeconds = parseInt(
-      localStorage.getItem("refreshInterval") || "15",
-      10
+    const interval = setInterval(
+      () => fetchEmails(),
+      parseInt(localStorage.getItem("refreshInterval") || "15", 10) * 1000
     );
-    const interval = setInterval(fetchEmails, intervalSeconds * 1000);
     return () => clearInterval(interval);
   }, [fetchEmails]);
 
-  const handleTriageUpdate = async (
-    emailId: string,
-    timestamp: string,
-    newTriage: Email["triage"]
-  ) => {
-    await updateTriageAction(emailId, timestamp, newTriage);
-    toast.success(`Marked as ${newTriage}`);
-    fetchEmails();
+  const handleQuerySubmit = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    try {
+      const token = getAuthToken();
+      const userID = getUserID();
+      if (!token || !userID) {
+        toast.error("Missing authentication", {
+          description: "You are not logged in.",
+        });
+        return;
+      }
+      const result = await apiRequest(
+        "/filter",
+        "POST",
+        { userID, query },
+        token
+      );
+      setEmails(result);
+    } catch (err: any) {
+      toast.error("Filter error", {
+        description: err.message || "Could not apply natural language filter.",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filteredEmails = emails
-    .filter((email) => filter === "All" || email.triage === filter)
-    .sort(
-      (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
+  const filtered = emails
+    .filter((e) => filter === "All" || e.triage === filter)
+    .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp));
 
   return (
-    <ScrollArea className="h-[calc(100vh-120px)] rounded-md border p-4">
-      <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-        <h2 className="text-muted-foreground">View all your emails here!</h2>
+    <div className="h-[calc(100vh-120px)] rounded-md border p-4 overflow-hidden">
+      {/* top controls */}
+      <div className="mb-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+        <Input
+          className="w-full md:w-1/2 border border-black"
+          placeholder="Type natural language query (e.g. 'Emails about lunch')"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleQuerySubmit();
+          }}
+        />
         <Select value={filter} onValueChange={setFilter}>
-          <SelectTrigger className="w-[220px] border border-black">
+          <SelectTrigger className="w-56 border border-black">
             <SelectValue placeholder="Filter by Triage" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="All">All</SelectItem>
-            {Object.keys(triageColorMap).map((key) => (
-              <SelectItem key={key} value={key}>
-                {key}
+            {Object.keys(triageColorMap).map((k) => (
+              <SelectItem key={k} value={k}>
+                {k}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {loading && initialLoad ? (
+      {loading && initialLoad && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i}>
@@ -134,190 +162,202 @@ export function EmailList({ initialEmails }: EmailListProps) {
             </Card>
           ))}
         </div>
-      ) : filteredEmails.length === 0 ? (
-        <div className="flex h-64 items-center justify-center rounded-lg border border-dashed">
-          <p className="text-muted-foreground">
-            No emails found for this category.
+      )}
+      {loading && !initialLoad && (
+        <div className="flex flex-col items-center justify-center h-64 space-y-2">
+          <Loader2 className="w-8 h-8 animate-spin" />
+          <p className="text-sm text-muted-foreground">
+            Filtering, please wait...
           </p>
         </div>
-      ) : viewMode === "grid" ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredEmails.map((email) => (
-            <Card
-              key={email.emailId}
-              className={`relative border ${triageColorMap[email.triage]}`}
-            >
-              <CardHeader className="space-y-1">
-                <div className="flex justify-between items-start gap-2">
-                  <CardTitle className="text-base font-semibold max-w-[85%]">
-                    {email.subject || "No Subject"}
-                  </CardTitle>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() =>
-                        handleTriageUpdate(
-                          email.emailId,
-                          email.timestamp,
-                          "Offensive"
-                        )
-                      }
-                      title="Mark as Offensive"
-                      className="text-xs p-1 rounded bg-yellow-500 hover:bg-yellow-600 text-white"
-                    >
-                      <ShieldAlert className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleTriageUpdate(
-                          email.emailId,
-                          email.timestamp,
-                          "Spam"
-                        )
-                      }
-                      title="Mark as Spam"
-                      className="text-xs p-1 rounded bg-red-500 hover:bg-red-600 text-white"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleTriageUpdate(
-                          email.emailId,
-                          email.timestamp,
-                          "Flagged"
-                        )
-                      }
-                      title="Mark as Flagged"
-                      className="text-xs p-1 rounded bg-green-500 hover:bg-green-600 text-white"
-                    >
-                      <Flag className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground italic">
-                  {email.triage}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  From: {email.sender} ({email.fromEmail})
-                </p>
-              </CardHeader>
-              <CardContent className="text-sm">
-                <p className="text-xs text-muted-foreground mb-2">
-                  Received: {new Date(email.timestamp).toLocaleString()}
-                </p>
-                <Separator className="my-2 border-gray-900" />
-                {(() => {
-                  const isExpanded = expandedEmailIds.has(email.emailId);
-                  const TRUNCATE_LIMIT = 150;
-                  const shouldTruncate = email.body.length > TRUNCATE_LIMIT;
-                  const displayText = isExpanded
-                    ? email.body
-                    : email.body.slice(0, TRUNCATE_LIMIT);
-                  return (
-                    <>
-                      <p className="whitespace-pre-wrap">{displayText}</p>
-                      {shouldTruncate && (
-                        <button
-                          onClick={() => toggleExpand(email.emailId)}
-                          className="text-sm text-blue-600 underline mt-1"
-                        >
-                          {isExpanded ? "Show less" : "Show more"}
-                        </button>
-                      )}
-                    </>
-                  );
-                })()}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm border">
-            <thead className="bg-muted text-left">
-              <tr>
-                <th className="px-4 py-2">Subject</th>
-                <th className="px-4 py-2">From</th>
-                <th className="px-4 py-2">To</th>
-                <th className="px-4 py-2">Triage</th>
-                <th className="px-4 py-2">Timestamp</th>
-                <th className="px-4 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEmails.map((email) => (
-                <Fragment key={email.emailId}>
-                  <tr
-                    className={`${
-                      triageColorMap[email.triage]
-                    } border border-gray-300`}
-                  >
-                    <td className="px-4 py-3 font-medium border border-gray-300 rounded-l-md">
-                      {email.subject || "No Subject"}
-                    </td>
-                    <td className="px-4 py-3 border border-gray-300">
-                      {email.sender} ({email.fromEmail})
-                    </td>
-                    <td className="px-4 py-3 border border-gray-300">
-                      {email.toEmail}
-                    </td>
-                    <td className="px-4 py-3 border border-gray-300">
-                      {email.triage}
-                    </td>
-                    <td className="px-4 py-3 border border-gray-300">
-                      {new Date(email.timestamp).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 border border-gray-300 flex gap-1">
-                      <button
-                        onClick={() =>
-                          handleTriageUpdate(
-                            email.emailId,
-                            email.timestamp,
-                            "Offensive"
-                          )
-                        }
-                        title="Mark as Offensive"
-                        className="text-xs p-1 rounded bg-yellow-500 hover:bg-yellow-600 text-white"
-                      >
-                        <ShieldAlert className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleTriageUpdate(
-                            email.emailId,
-                            email.timestamp,
-                            "Spam"
-                          )
-                        }
-                        title="Mark as Spam"
-                        className="text-xs p-1 rounded bg-red-500 hover:bg-red-600 text-white"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleTriageUpdate(
-                            email.emailId,
-                            email.timestamp,
-                            "Flagged"
-                          )
-                        }
-                        title="Mark as Flagged"
-                        className="text-xs p-1 rounded bg-green-500 hover:bg-green-600 text-white"
-                      >
-                        <Flag className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td colSpan={6} className="h-2"></td>
-                  </tr>
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
       )}
-    </ScrollArea>
+
+      {!loading && (
+        <ScrollArea className="h-full">
+          <div className="h-full overflow-y-auto overscroll-none">
+            {filtered.length === 0 ? (
+              <div className="flex h-64 items-center justify-center rounded-lg border-dashed border">
+                <p className="text-muted-foreground">
+                  No emails found for this query or category.
+                </p>
+              </div>
+            ) : viewMode === "grid" ? (
+              <div className="overflow-x-auto">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {filtered.map((email) => (
+                    <Card
+                      key={email.emailId}
+                      className={`relative border ${
+                        triageColorMap[email.triage]
+                      }`}
+                    >
+                      <CardHeader className="space-y-1">
+                        <div className="flex justify-between items-start gap-2">
+                          <CardTitle className="text-base font-semibold max-w-[85%]">
+                            {email.subject || "No Subject"}
+                          </CardTitle>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() =>
+                                updateTriageAction(
+                                  email.emailId,
+                                  email.timestamp,
+                                  "Offensive"
+                                ).then(fetchEmails)
+                              }
+                              title="Mark as Offensive"
+                              className="p-1 rounded bg-yellow-500 hover:bg-yellow-600 text-white"
+                            >
+                              <ShieldAlert className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                updateTriageAction(
+                                  email.emailId,
+                                  email.timestamp,
+                                  "Spam"
+                                ).then(fetchEmails)
+                              }
+                              title="Mark as Spam"
+                              className="p-1 rounded bg-red-500 hover:bg-red-600 text-white"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                updateTriageAction(
+                                  email.emailId,
+                                  email.timestamp,
+                                  "Flagged"
+                                ).then(fetchEmails)
+                              }
+                              title="Mark as Flagged"
+                              className="p-1 rounded bg-green-500 hover:bg-green-600 text-white"
+                            >
+                              <Flag className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-xs italic text-muted-foreground">
+                          {email.triage}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          From: {email.sender} ({email.fromEmail})
+                        </p>
+                      </CardHeader>
+                      <CardContent className="text-sm">
+                        <p className="text-xs mb-2 text-muted-foreground">
+                          Received: {new Date(email.timestamp).toLocaleString()}
+                        </p>
+                        <Separator className="my-2 border-gray-900" />
+                        {(() => {
+                          const isExpanded = expandedEmailIds.has(
+                            email.emailId
+                          );
+                          const limit = 150;
+                          const text = isExpanded
+                            ? email.body
+                            : email.body.slice(0, limit);
+                          return (
+                            <>
+                              <p className="whitespace-pre-wrap">{text}</p>
+                              {email.body.length > limit && (
+                                <button
+                                  onClick={() => toggleExpand(email.emailId)}
+                                  className="mt-1 text-sm underline text-blue-600"
+                                >
+                                  {isExpanded ? "Show less" : "Show more"}
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm border">
+                  <thead className="bg-muted text-left">
+                    <tr>
+                      <th className="px-4 py-2">Subject</th>
+                      <th className="px-4 py-2">From</th>
+                      <th className="px-4 py-2">To</th>
+                      <th className="px-4 py-2">Triage</th>
+                      <th className="px-4 py-2">Received</th>
+                      <th className="px-4 py-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((email) => (
+                      <Fragment key={email.emailId}>
+                        <tr
+                          className={`${triageColorMap[email.triage]} border`}
+                        >
+                          <td className="px-4 py-2 border">
+                            {email.subject || "No Subject"}
+                          </td>
+                          <td className="px-4 py-2 border">
+                            {email.sender} ({email.fromEmail})
+                          </td>
+                          <td className="px-4 py-2 border">{email.toEmail}</td>
+                          <td className="px-4 py-2 border">{email.triage}</td>
+                          <td className="px-4 py-2 border">
+                            {new Date(email.timestamp).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-2 border flex gap-2">
+                            <button
+                              onClick={() =>
+                                updateTriageAction(
+                                  email.emailId,
+                                  email.timestamp,
+                                  "Offensive"
+                                ).then(fetchEmails)
+                              }
+                              title="Mark Offensive"
+                            >
+                              <ShieldAlert className="w-4 h-4 text-yellow-500" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                updateTriageAction(
+                                  email.emailId,
+                                  email.timestamp,
+                                  "Spam"
+                                ).then(fetchEmails)
+                              }
+                              title="Mark Spam"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                updateTriageAction(
+                                  email.emailId,
+                                  email.timestamp,
+                                  "Flagged"
+                                ).then(fetchEmails)
+                              }
+                              title="Mark Flagged"
+                            >
+                              <Flag className="w-4 h-4 text-green-500" />
+                            </button>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td colSpan={6} className="h-2"></td>
+                        </tr>
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      )}
+    </div>
   );
 }

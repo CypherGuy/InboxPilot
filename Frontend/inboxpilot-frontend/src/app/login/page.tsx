@@ -28,6 +28,12 @@ export default function LoginPage() {
     const result = await loginAction(formData);
 
     if (result.success) {
+      // Keep token and user in localStorage for client-side fetches
+      if (typeof window !== "undefined" && result.token && result.user) {
+        localStorage.setItem("inboxpilot_auth_token", result.token);
+        localStorage.setItem("inboxpilot_user", JSON.stringify(result.user));
+      }
+
       toast.success("Login successful", {
         description: "Redirecting to your dashboard...",
       });
