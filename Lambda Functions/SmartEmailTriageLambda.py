@@ -107,7 +107,6 @@ def extract_body(msg):
     if not text:
         return ""
 
-    # Set all line endings to just "\n"
     return text.replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
