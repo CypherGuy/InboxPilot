@@ -44,26 +44,29 @@ def lambda_handler(event, context):
 
     # Try to extract recipient from SES, fallback to email headers
     to_header = msg.get("to", "[Unknown recipient]")
-    _, to_email_fallback = parseaddr(to_header)
+    _, fallback_to = parseaddr(to_header)
     recipients = rec0.get("ses", {}).get("receipt", {}).get("recipients", [])
-    to_email = recipients[0] if recipients else to_email_fallback
+    to_email = recipients[0] if recipients else fallback_to
 
     triage, is_offensive = classify_email(subject, body)
 
-    if triage == "Business Opportunity":
+    if triage == "Partnerships":
         try:
             # Find user by proxy email, not userID
-            user_response = users_table.scan(
+            user_resp = users_table.scan(
                 FilterExpression=Attr("proxyEmail").eq(to_email)
             )
-            if user_response.get("Items"):
-                user_item = user_response["Items"][0]
-                reply_template = user_item.get(
+            if user_resp.get("Items"):
+                user_item = user_resp["Items"][0]
+                reply_tmpl = user_item.get(
                     "replyTemplate", "Thanks for reaching out!")
                 proxy_email = user_item.get("proxyEmail", to_email)
-
-                send_reply_email(reply_from=proxy_email,
-                                 reply_to=sender_email, reply_body=reply_template)
+                send_reply_email(
+                    reply_from=proxy_email,
+                    reply_to=sender_email,
+                    reply_body=reply_tmpl,
+                    original_subject=subject
+                )
             else:
                 print(f"❌ No user found with proxyEmail = {to_email}")
         except Exception as e:
@@ -80,7 +83,6 @@ def lambda_handler(event, context):
         "triage": triage,
         "timestamp": datetime.utcnow().isoformat()
     }
-
     if is_offensive:
         item["expirationTime"] = int(
             (datetime.utcnow() + timedelta(days=30)).timestamp())
@@ -114,26 +116,21 @@ def classify_email(subject, body):
     system_prompt = (
         "You are a classification assistant. "
         "Categorize this email into exactly one of: Sales, Applications, Spam, Partnerships, Miscellaneous, or Unsorted. "
-        "If the email contains abusive, threatening, or inappropriate content in a non-casual way, choose 'Offensive'."
-        "If it contains deceptive or scam-like content (e.g., phishing), choose 'Spam'."
-        "Only respond with the single label in the exact case as how I wrote it before."
+        "If the email contains abusive, threatening, or inappropriate content in a non-casual way, choose 'Offensive'. "
+        "If it contains deceptive or scam-like content (e.g., phishing), choose 'Spam'. "
+        "Only respond with the single label in the exact case as listed."
     )
-
     payload = {
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 70,
         "system": system_prompt,
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"Subject: {subject}\n\nBody:\n{body}"
-                    }
-                ]
-            }
-        ]
+        "messages": [{
+            "role": "user",
+            "content": [{
+                "type": "text",
+                "text": f"Subject: {subject}\n\nBody:\n{body}"
+            }]
+        }],
     }
 
     try:
@@ -145,9 +142,9 @@ def classify_email(subject, body):
             guardrailVersion=GUARDRAIL_VERSION,
             body=json.dumps(payload),
         )
-        raw_body = response["body"].read().decode()
-        print("📤 Claude raw response:", raw_body)
-        out = json.loads(raw_body)
+        raw = response["body"].read().decode()
+        print("📤 Claude raw response:", raw)
+        out = json.loads(raw)
 
         if "content" in out and isinstance(out["content"], list):
             label = out["content"][0].get("text", "").strip()
@@ -162,17 +159,16 @@ def classify_email(subject, body):
         return "Unknown", False
 
 
-def send_reply_email(reply_from, reply_to, reply_body):
+def send_reply_email(reply_from, reply_to, reply_body, original_subject):
     try:
         verified_sender = "noreply@inboxpilot.xyz"
-
         ses.send_email(
             Source=verified_sender,
             Destination={"ToAddresses": [reply_to]},
             ReplyToAddresses=[reply_from],
             Message={
-                "Subject": {"Data": "Re: Business Opportunity"},
-                "Body": {"Text": {"Data": reply_body}},
+                "Subject": {"Data": f"Re: {original_subject}"},
+                "Body":    {"Text": {"Data": reply_body}},
             },
         )
     except Exception as e:

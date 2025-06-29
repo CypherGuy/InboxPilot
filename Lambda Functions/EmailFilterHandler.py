@@ -35,8 +35,24 @@ def lambda_handler(event, context):
                 "body": json.dumps({"error": "Missing 'query' or 'userID'"})
             }
 
-        # Step 1: Use LLM to classify query
         filter_criteria = classify_natural_query(natural_query)
+
+        KNOWN_TRIAGE = {
+            "Sales", "Applications", "Spam", "Partnerships",
+            "Miscellaneous", "Unsorted", "Offensive", "Flagged"
+        }
+        if "triage" in filter_criteria:
+            t = filter_criteria["triage"]
+            if isinstance(t, list):
+                filter_criteria["triage"] = [
+                    tag if tag in KNOWN_TRIAGE else "Unsorted"
+                    for tag in t
+                ]
+            else:
+                filter_criteria["triage"] = (
+                    t if t in KNOWN_TRIAGE else "Unsorted"
+                )
+
         if not isinstance(filter_criteria, dict):
             return {
                 "statusCode": 400,
@@ -62,9 +78,9 @@ def lambda_handler(event, context):
 def classify_natural_query(query):
     instructions = """
 You are an AI assistant that converts user queries into filters for email search.
-Your response MUST be a valid JSON object. Do NOT wrap it in code blocks or quotes.
+Your response MUST be a valid JSON object. Do NOT wrap it in code blocks or quotes. DO NOT MAKE YOUR OWN TAG, ONLY USE ONE OF THE ONES BELOW.
 
-Allowed keys: "triage", "fromEmail", "subject", "beforeDate", "afterDate", "onDate".
+Allowed tags: "triage", "fromEmail", "subject", "beforeDate", "afterDate", "onDate". YOU MUST ONLY PICK FROM THESE, DO NOT MAKE YOUR OWN TAG
 
 Use key "onDate" to match emails from a specific date.
 
@@ -136,8 +152,6 @@ Now respond only with a valid JSON object:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        # If the model returned a known triage label, use that;
-        # otherwise treat it as a subject keyword.
         t = text.capitalize()
         if t in KNOWN_TRIAGE:
             return {"triage": [t]}

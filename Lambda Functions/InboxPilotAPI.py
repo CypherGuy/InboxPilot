@@ -3,6 +3,7 @@ from boto3.dynamodb.conditions import Attr
 import json
 import boto3
 import os
+import time
 from decimal import Decimal
 
 SECRET_TOKEN = os.environ["AUTH_TOKEN"]
@@ -45,12 +46,17 @@ def make_response(status_code, body_dict, event=None):
 
 
 def register_handler(event, context):
-    body = json.loads(event["body"])
-    user_id = body["userID"]
-    name = body["name"]
-    proxy_email = body["proxyEmail"]
-    reply_template = body["replyTemplate"]
-    raw_password = body["password"]
+    body = json.loads(event.get("body", "{}"))
+    user_id = body.get("userID")
+    raw_password = body.get("password")
+
+    if not user_id or not raw_password:
+        return make_response(400, {"error": "Missing userID or password"}, event)
+
+    name = body.get("name", user_id)
+    proxy_email = body.get("proxyEmail", f"{user_id}@inboxpilot.xyz")
+    reply_template = body.get(
+        "replyTemplate", "Hey, I'll get back to you soon!")
 
     existing = users_table.get_item(Key={"userID": user_id})
     if "Item" in existing:
@@ -67,7 +73,18 @@ def register_handler(event, context):
         "password": hashed_pw
     })
 
-    return make_response(200, {"message": "User registered successfully."}, event)
+    user_obj = {
+        "userID": user_id,
+        "name": name,
+        "proxyEmail": proxy_email,
+        "replyTemplate": reply_template
+    }
+
+    return make_response(200, {
+        "message": "User registered successfully.",
+        "token": SECRET_TOKEN,
+        "user": user_obj
+    }, event)
 
 
 def login_handler(event, context):
@@ -124,18 +141,25 @@ def reply_handler(event, context):
 
 def emails_handler(event, context):
     try:
-        to_email = event.get("queryStringParameters", {}).get("toEmail")
-        triage_filter = event.get("queryStringParameters", {}).get("triage")
-        new_only = event.get("queryStringParameters", {}).get("new") == "true"
+        qs = event.get("queryStringParameters") or {}
+        to_email = qs.get("toEmail")
+        triage = qs.get("triage")
+        new_only = qs.get("new") == "true"
 
         if not to_email:
             return make_response(400, {"error": "Missing toEmail"}, event)
 
         filter_expression = Attr("toEmail").eq(to_email)
 
-        if triage_filter and triage_filter != "All Emails":
-            filter_expression = filter_expression & Attr(
-                "triage").eq(triage_filter)
+        # if ?new=true, only emails from the last 2 hours
+        if new_only:
+            cutoff_ts = time.time() - 2 * 60 * 60
+            cutoff_iso = time.strftime(
+                "%Y-%m-%dT%H:%M:%S", time.gmtime(cutoff_ts))
+            filter_expression &= Attr("timestamp").gt(cutoff_iso)
+
+        if triage and triage != "All Emails":
+            filter_expression &= Attr("triage").eq(triage)
 
         email_response = emails_table.scan(FilterExpression=filter_expression)
         emails = email_response.get("Items", [])
@@ -175,7 +199,7 @@ def update_triage_handler(event, context):
 
         allowed_triage_values = {
             "Sales", "Applications", "Spam", "Partnerships",
-            "Miscellaneous", "Unsorted", "Offensive"
+            "Miscellaneous", "Unsorted", "Offensive", "Flagged"
         }
 
         if new_triage not in allowed_triage_values:
