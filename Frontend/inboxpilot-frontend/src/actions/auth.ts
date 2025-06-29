@@ -18,19 +18,13 @@ export async function loginAction(formData: FormData) {
   }
 
   try {
-    // Call your /login Lambda; expect { message, token, user }
     const res = await apiRequest("/login", "POST", { userID, password });
-
     if (!res.user?.userID || !res.token) {
       return { success: false, message: "Invalid credentials." };
     }
-
-    // Keep cookies for SSR if desired
     await setAuthCookie(res.token);
     await setUserIDCookie(res.user.userID);
     await setProxyEmailCookie(res.user.proxyEmail);
-
-    // **Return the user and token** so the client can persist them
     return {
       success: true,
       user: res.user,
@@ -41,6 +35,41 @@ export async function loginAction(formData: FormData) {
     return {
       success: false,
       message: error.message || "Login failed due to an unexpected error.",
+    };
+  }
+}
+
+export async function signupAction(formData: FormData) {
+  const name = formData.get("name")?.toString() || "";
+  const userID = formData.get("userID")?.toString() || "";
+  const password = formData.get("password")?.toString() || "";
+
+  if (!name || !userID || !password) {
+    return { success: false, message: "Missing required fields." };
+  }
+
+  try {
+    const res = await apiRequest("/register", "POST", {
+      name,
+      userID,
+      password,
+    });
+    if (!res.user?.userID || !res.token) {
+      return { success: false, message: "Signup failed." };
+    }
+    await setAuthCookie(res.token);
+    await setUserIDCookie(res.user.userID);
+    await setProxyEmailCookie(res.user.proxyEmail);
+    return {
+      success: true,
+      user: res.user,
+      token: res.token,
+    };
+  } catch (error: any) {
+    console.error("Signup failed:", error);
+    return {
+      success: false,
+      message: error.message || "Signup failed due to an unexpected error.",
     };
   }
 }

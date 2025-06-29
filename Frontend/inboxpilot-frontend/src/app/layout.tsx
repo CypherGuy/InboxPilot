@@ -2,7 +2,7 @@ import type React from "react";
 import type { Metadata } from "next/types";
 import { Inter } from "next/font/google";
 import { cookies } from "next/headers";
-import { getAuthCookie } from "@/lib/auth";
+import { getAuthCookie } from "@/lib/auth.server";
 
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
