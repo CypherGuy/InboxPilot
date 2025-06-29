@@ -1,4 +1,3 @@
-// src/lib/auth.server.ts
 import { cookies } from "next/headers";
 
 const TOKEN_KEY = "inboxpilot_auth_token";
@@ -44,6 +43,11 @@ export async function getUserIDCookie(): Promise<string | undefined> {
   return cookieStore.get(USER_ID_KEY)?.value;
 }
 
+export async function removeUserIDCookie() {
+  const cookieStore = await cookies();
+  cookieStore.delete(USER_ID_KEY);
+}
+
 export async function setProxyEmailCookie(email: string) {
   const cookieStore = await cookies();
   cookieStore.set(PROXY_EMAIL_KEY, email, {
@@ -58,4 +62,9 @@ export async function setProxyEmailCookie(email: string) {
 export async function getProxyEmailCookie(): Promise<string | undefined> {
   const cookieStore = await cookies();
   return cookieStore.get(PROXY_EMAIL_KEY)?.value;
+}
+
+export async function removeProxyEmailCookie() {
+  const cookieStore = await cookies();
+  cookieStore.delete(PROXY_EMAIL_KEY);
 }
