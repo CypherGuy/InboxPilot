@@ -1,3 +1,4 @@
+// src/lib/auth.server.ts
 import { cookies } from "next/headers";
 
 const TOKEN_KEY = "inboxpilot_auth_token";
@@ -5,58 +6,56 @@ const USER_ID_KEY = "inboxpilot_user_id";
 const PROXY_EMAIL_KEY = "inboxpilot_proxy_email";
 
 export async function setAuthCookie(token: string) {
-  cookies().set(TOKEN_KEY, token, {
+  const cookieStore = await cookies();
+  cookieStore.set(TOKEN_KEY, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
-}
-
-export async function setUserIDCookie(userID: string) {
-  cookies().set(USER_ID_KEY, userID, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
-}
-
-export async function setProxyEmailCookie(email: string) {
-  cookies().set(PROXY_EMAIL_KEY, email, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
-}
-
-export async function removeAuthCookie() {
-  const store = cookies();
-  store.delete(TOKEN_KEY);
-  store.delete(USER_ID_KEY);
-  store.delete(PROXY_EMAIL_KEY);
-}
-
-export async function removeUserIDCookie() {
-  cookies().delete(USER_ID_KEY);
-}
-
-export async function removeProxyEmailCookie() {
-  cookies().delete(PROXY_EMAIL_KEY);
 }
 
 export async function getAuthCookie(): Promise<string | undefined> {
-  return cookies().get(TOKEN_KEY)?.value;
+  const cookieStore = await cookies();
+  return cookieStore.get(TOKEN_KEY)?.value;
+}
+
+export async function removeAuthCookie() {
+  const cookieStore = await cookies();
+  cookieStore.delete(TOKEN_KEY);
+  cookieStore.delete(USER_ID_KEY);
+  cookieStore.delete(PROXY_EMAIL_KEY);
+}
+
+export async function setUserIDCookie(userID: string) {
+  const cookieStore = await cookies();
+  cookieStore.set(USER_ID_KEY, userID, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  });
 }
 
 export async function getUserIDCookie(): Promise<string | undefined> {
-  return cookies().get(USER_ID_KEY)?.value;
+  const cookieStore = await cookies();
+  return cookieStore.get(USER_ID_KEY)?.value;
+}
+
+export async function setProxyEmailCookie(email: string) {
+  const cookieStore = await cookies();
+  cookieStore.set(PROXY_EMAIL_KEY, email, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  });
 }
 
 export async function getProxyEmailCookie(): Promise<string | undefined> {
-  return cookies().get(PROXY_EMAIL_KEY)?.value;
+  const cookieStore = await cookies();
+  return cookieStore.get(PROXY_EMAIL_KEY)?.value;
 }
