@@ -21,7 +21,9 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const cookieStore = cookies();
+  // Await the cookieStore to access get()
+  const cookieStore = await cookies();
+
   const defaultOpen = cookieStore.get("sidebar:state")?.value === "true";
   const isAuthenticated = !!cookieStore.get("inboxpilot_auth_token")?.value;
 
@@ -39,7 +41,6 @@ export default async function RootLayout({
             <SidebarInset>{children}</SidebarInset>
           </SidebarProvider>
         ) : (
-          // No sidebar when not authenticated
           children
         )}
         <Toaster />
