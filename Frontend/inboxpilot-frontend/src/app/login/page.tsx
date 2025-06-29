@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, FormEvent } from "react";
 import { loginAction } from "@/actions/auth";
+import { setLocalAuth } from "@/lib/auth.client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,7 +18,7 @@ import { toast } from "sonner";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string>("");
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -27,35 +28,26 @@ export default function LoginPage() {
     const formData = new FormData(e.currentTarget);
     const result = await loginAction(formData);
 
-    if (result.success) {
-      // Keep token and user in localStorage for client-side fetches
-      if (typeof window !== "undefined" && result.token && result.user) {
-        localStorage.setItem("inboxpilot_auth_token", result.token);
-        localStorage.setItem("inboxpilot_user", JSON.stringify(result.user));
-      }
+    if (result.success && result.userID && result.proxyEmail && result.token) {
+      // Store in localStorage for client-side use:
+      setLocalAuth(result.token, result.userID, result.proxyEmail);
 
       toast.success("Login successful", {
         description: "Redirecting to your dashboard...",
       });
       window.location.href = "/";
     } else {
-      let errorMessage = result.message;
-      try {
-        const parsed = JSON.parse(result.message);
-        errorMessage = parsed.message || errorMessage;
-      } catch {}
-      setError(errorMessage);
-      toast.error("Login failed", {
-        description: errorMessage,
-      });
+      const msg = result.message ?? "Login failed";
+      setError(msg);
+      toast.error("Login failed", { description: msg });
     }
 
     setLoading(false);
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-950">
-      <Card className="mx-auto max-w-sm">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-white">
+      <Card className="mx-auto w-full max-w-sm">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Login</CardTitle>
           <CardDescription>
@@ -76,9 +68,7 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
-              </div>
+              <Label htmlFor="password">Password</Label>
               <Input id="password" name="password" type="password" required />
             </div>
 
@@ -92,9 +82,9 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{" "}
+            Don’t have an account?{" "}
             <Link href="/signup" className="underline">
-              Sign&nbsp;up
+              Sign up
             </Link>
           </div>
         </CardContent>

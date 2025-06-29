@@ -1,9 +1,23 @@
-/**
- * Client-side auth helpers: read from localStorage
- */
-
 const TOKEN_KEY = "inboxpilot_auth_token";
-const USER_KEY = "inboxpilot_user";
+const USER_ID_KEY = "inboxpilot_user_id";
+const PROXY_EMAIL_KEY = "inboxpilot_proxy_email";
+export function setLocalAuth(
+  token: string,
+  userID: string,
+  proxyEmail: string
+) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_ID_KEY, JSON.stringify({ userID }));
+  localStorage.setItem(PROXY_EMAIL_KEY, proxyEmail);
+}
+
+export function clearLocalAuth() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_ID_KEY);
+  localStorage.removeItem(PROXY_EMAIL_KEY);
+}
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -12,13 +26,17 @@ export function getAuthToken(): string | null {
 
 export function getUserID(): string | null {
   if (typeof window === "undefined") return null;
-  const u = localStorage.getItem("inboxpilot_user");
-  if (!u) return null;
+  const raw = localStorage.getItem(USER_ID_KEY);
+  if (!raw) return null;
   try {
-    const user = JSON.parse(u);
-    // return the mailbox address (toEmail) for filtering
-    return user.proxyEmail ?? user.userID ?? null;
+    const obj = JSON.parse(raw);
+    return obj.userID ?? null;
   } catch {
     return null;
   }
+}
+
+export function getProxyEmail(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(PROXY_EMAIL_KEY);
 }

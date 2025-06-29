@@ -1,4 +1,3 @@
-// src/components/email-list.tsx
 "use client";
 
 import { Fragment, useEffect, useState, useCallback } from "react";
@@ -125,7 +124,6 @@ export function EmailList({ initialEmails }: EmailListProps) {
 
   return (
     <div className="rounded-md border p-4">
-      {/* Top controls */}
       <div className="mb-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
         <Input
           className="w-full md:w-1/2 border border-black"
@@ -149,9 +147,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
         </Select>
       </div>
 
-      {/* Scrollable area */}
       <ScrollArea className="h-[calc(100vh-128px)]">
-        {/* Initial skeleton */}
         {loading && initialLoad && (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -170,7 +166,6 @@ export function EmailList({ initialEmails }: EmailListProps) {
           </div>
         )}
 
-        {/* Filtering spinner */}
         {loading && !initialLoad && (
           <div className="flex flex-col items-center justify-center h-64 space-y-2">
             <Loader2 className="w-8 h-8 animate-spin" />
@@ -180,7 +175,6 @@ export function EmailList({ initialEmails }: EmailListProps) {
           </div>
         )}
 
-        {/* Content */}
         {!loading && (
           <div className="overflow-auto">
             {filtered.length === 0 ? (
@@ -254,7 +248,16 @@ export function EmailList({ initialEmails }: EmailListProps) {
                     </CardHeader>
                     <CardContent className="text-sm">
                       <p className="text-xs mb-2 text-muted-foreground">
-                        Received: {new Date(email.timestamp).toLocaleString()}
+                        Received:{" "}
+                        {new Date(email.timestamp).toLocaleString("en-GB", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: false,
+                        })}
                       </p>
                       <Separator className="my-2 border-gray-900" />
                       {(() => {
@@ -306,7 +309,15 @@ export function EmailList({ initialEmails }: EmailListProps) {
                       <td className="px-4 py-3">{email.toEmail}</td>
                       <td className="px-4 py-3">{email.triage}</td>
                       <td className="px-4 py-3">
-                        {new Date(email.timestamp).toLocaleString()}
+                        {new Date(email.timestamp).toLocaleString("en-GB", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: false,
+                        })}
                       </td>
                       <td className="px-4 py-3 flex justify-center items-center gap-2">
                         <ShieldAlert className="w-5 h-5 text-yellow-500" />

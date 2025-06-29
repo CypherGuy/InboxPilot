@@ -14,17 +14,6 @@ export async function setAuthCookie(token: string) {
   });
 }
 
-export async function getAuthCookie(): Promise<string | undefined> {
-  return cookies().get(TOKEN_KEY)?.value;
-}
-
-export async function removeAuthCookie() {
-  const store = cookies();
-  store.delete(TOKEN_KEY);
-  store.delete(USER_ID_KEY);
-  store.delete(PROXY_EMAIL_KEY);
-}
-
 export async function setUserIDCookie(userID: string) {
   cookies().set(USER_ID_KEY, userID, {
     httpOnly: true,
@@ -35,10 +24,6 @@ export async function setUserIDCookie(userID: string) {
   });
 }
 
-export async function getUserIDCookie(): Promise<string | undefined> {
-  return cookies().get(USER_ID_KEY)?.value;
-}
-
 export async function setProxyEmailCookie(email: string) {
   cookies().set(PROXY_EMAIL_KEY, email, {
     httpOnly: true,
@@ -47,6 +32,29 @@ export async function setProxyEmailCookie(email: string) {
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
+}
+
+export async function removeAuthCookie() {
+  const store = cookies();
+  store.delete(TOKEN_KEY);
+  store.delete(USER_ID_KEY);
+  store.delete(PROXY_EMAIL_KEY);
+}
+
+export async function removeUserIDCookie() {
+  cookies().delete(USER_ID_KEY);
+}
+
+export async function removeProxyEmailCookie() {
+  cookies().delete(PROXY_EMAIL_KEY);
+}
+
+export async function getAuthCookie(): Promise<string | undefined> {
+  return cookies().get(TOKEN_KEY)?.value;
+}
+
+export async function getUserIDCookie(): Promise<string | undefined> {
+  return cookies().get(USER_ID_KEY)?.value;
 }
 
 export async function getProxyEmailCookie(): Promise<string | undefined> {

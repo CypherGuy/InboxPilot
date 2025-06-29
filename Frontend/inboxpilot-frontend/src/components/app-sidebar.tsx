@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { logoutAction } from "@/actions/auth";
-import { getUserID } from "@/lib/auth.client";
+import { getProxyEmail } from "@/lib/auth.client";
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
+  Home,
   Bell,
   Inbox,
   Mail,
@@ -33,67 +34,60 @@ import {
   MessageSquareWarning,
 } from "lucide-react";
 
+const emailCategories = [
+  { title: "Recent Emails", url: "/?new=true", icon: Bell },
+  { title: "All Emails", url: "/?triage=All Emails", icon: Inbox },
+  { title: "Sales", url: "/?triage=Sales", icon: Mail },
+  { title: "Applications", url: "/?triage=Applications", icon: Briefcase },
+  { title: "Partnerships", url: "/?triage=Partnerships", icon: Tag },
+  { title: "Spam", url: "/?triage=Spam", icon: QuestionMarkCircle },
+  { title: "Miscellaneous", url: "/?triage=Miscellaneous", icon: HelpCircle },
+  { title: "Unsorted", url: "/?triage=Unsorted", icon: HelpCircle },
+  {
+    title: "Offensive",
+    url: "/?triage=Offensive",
+    icon: MessageSquareWarning,
+  },
+  { title: "Flagged", url: "/?triage=Flagged", icon: Flag },
+];
+
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTriage = searchParams.get("triage");
-  const isNewTab = searchParams.get("new") === "true";
+  const newOnly = searchParams.get("new") === "true";
 
-  const [seenNew, setSeenNew] = useState<boolean>(false);
-  const userEmail = getUserID() || "";
+  const [displayEmail, setDisplayEmail] = useState<string>("");
 
   useEffect(() => {
-    if (!userEmail) return;
-    const key = `seenNew_${userEmail}`;
-    const stored = localStorage.getItem(key);
-    setSeenNew(stored === "true");
-    if (isNewTab && stored !== "true") {
-      localStorage.setItem(key, "true");
-      setSeenNew(true);
+    const proxy = getProxyEmail();
+    if (proxy) {
+      setDisplayEmail(proxy);
     }
-  }, [isNewTab, userEmail]);
+  }, []);
 
   const handleLogout = async () => {
     await logoutAction();
-    toast("Logged Out", {
-      description: "You have been successfully logged out.",
-    });
+    toast.success("Logged out");
   };
-
-  const emailCategories = [
-    { title: "Recent Emails", url: "/?new=true", icon: Bell },
-    { title: "All Emails", url: "/?triage=All Emails", icon: Inbox },
-    { title: "Sales", url: "/?triage=Sales", icon: Mail },
-    { title: "Applications", url: "/?triage=Applications", icon: Briefcase },
-    { title: "Partnerships", url: "/?triage=Partnerships", icon: Tag },
-    { title: "Spam", url: "/?triage=Spam", icon: QuestionMarkCircle },
-    { title: "Miscellaneous", url: "/?triage=Miscellaneous", icon: HelpCircle },
-    { title: "Unsorted", url: "/?triage=Unsorted", icon: HelpCircle },
-    {
-      title: "Offensive",
-      url: "/?triage=Offensive",
-      icon: MessageSquareWarning,
-    },
-    { title: "Flagged", url: "/?triage=Flagged", icon: Flag },
-  ];
 
   return (
     <Sidebar {...props}>
-      <SidebarHeader className="flex flex-col gap-2">
-        <div className="flex items-center gap-2 p-2 text-lg font-semibold">
-          <Link href="/" className="flex items-center gap-2">
-            <Inbox className="h-6 w-6" />
-            <span>InboxPilot</span>
-          </Link>
-        </div>
-        {userEmail && (
-          <div className="px-4 text-sm text-muted-foreground">
-            Logged in as
-            <br />
-            <span className="font-medium">{userEmail}</span>
-          </div>
+      <SidebarHeader>
+        <Link
+          href="/"
+          className="flex items-center gap-2 p-2 text-lg font-semibold"
+        >
+          <Home className="h-6 w-6" />
+          <span>InboxPilot</span>
+        </Link>
+        {displayEmail && (
+          <p className="px-2 text-sm text-gray-500">
+            Logged in as <strong>{displayEmail}</strong>
+          </p>
         )}
       </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Emails</SidebarGroupLabel>
@@ -101,23 +95,14 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenu>
               {emailCategories.map((item) => {
                 const isActive =
-                  item.title === "New Emails"
-                    ? isNewTab
-                    : currentTriage === item.title;
+                  (item.title === "Recent Emails" && newOnly) ||
+                  currentTriage === item.title;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive}>
-                      <Link
-                        href={item.url}
-                        className="flex items-center justify-between w-full px-4 py-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <item.icon className="h-5 w-5" />
-                          <span>{item.title}</span>
-                        </div>
-                        {item.title === "New Emails" && !seenNew && (
-                          <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-                        )}
+                      <Link href={item.url} className="flex items-center gap-2">
+                        <item.icon />
+                        <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -126,16 +111,14 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
         <SidebarGroup>
           <SidebarGroupLabel>Preferences</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/settings"}>
-                  <Link
-                    href="/settings"
-                    className="flex items-center gap-2 px-4 py-2"
-                  >
+                  <Link href="/settings" className="flex items-center gap-2">
                     <Settings />
                     <span>Settings</span>
                   </Link>
@@ -144,7 +127,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenuItem>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-2 px-4 py-2"
+                  className="w-full justify-start gap-2"
                   onClick={handleLogout}
                 >
                   <LogOut className="h-4 w-4" />
@@ -155,6 +138,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
       <SidebarRail />
     </Sidebar>
   );

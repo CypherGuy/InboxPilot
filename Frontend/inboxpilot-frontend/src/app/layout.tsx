@@ -2,8 +2,6 @@ import type React from "react";
 import type { Metadata } from "next/types";
 import { Inter } from "next/font/google";
 import { cookies } from "next/headers";
-import { getAuthCookie } from "@/lib/auth.server";
-
 import { cn } from "@/lib/utils";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
@@ -23,7 +21,7 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const cookieStore = await cookies();
+  const cookieStore = cookies();
   const defaultOpen = cookieStore.get("sidebar:state")?.value === "true";
   const isAuthenticated = !!cookieStore.get("inboxpilot_auth_token")?.value;
 
@@ -35,13 +33,16 @@ export default async function RootLayout({
           inter.className
         )}
       >
-        {isAuthenticated && ( // Only render if authenticated
+        {isAuthenticated ? (
           <SidebarProvider defaultOpen={defaultOpen}>
             <AppSidebar />
             <SidebarInset>{children}</SidebarInset>
           </SidebarProvider>
+        ) : (
+          // No sidebar when not authenticated
+          children
         )}
-        {!isAuthenticated && children} <Toaster />
+        <Toaster />
       </body>
     </html>
   );
