@@ -32,7 +32,7 @@ export default async function DashboardPage({ searchParams }: any) {
       </header>
 
       <div className="flex-1 rounded-xl bg-muted/50 p-4">
-        <EmailList initialEmails={emails} userID={userID} />
+        <EmailList initialEmails={emails} />
       </div>
     </div>
   );
