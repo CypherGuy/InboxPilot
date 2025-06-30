@@ -1,6 +1,7 @@
+// src/components/email-list.tsx
 "use client";
 
-import { Fragment, useEffect, useState, useCallback } from "react";
+import { Fragment, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { getEmailsAction, updateTriageAction } from "@/actions/data";
@@ -50,6 +51,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
   const [expandedEmailIds, setExpandedEmailIds] = useState<Set<string>>(
     new Set()
   );
+  const prevCountRef = useRef(initialEmails.length);
 
   const toggleExpand = (emailId: string) => {
     setExpandedEmailIds((prev) => {
@@ -62,13 +64,19 @@ export function EmailList({ initialEmails }: EmailListProps) {
   const fetchEmails = useCallback(async () => {
     if (initialLoad) setLoading(true);
 
-    console.log(`fetchEmails at ${new Date().toLocaleTimeString()}`);
-
     try {
       const { emails: fetched } = await getEmailsAction(
         serverFilter ?? undefined,
         newOnly
       );
+
+      // only notify if user is viewing "Recent Emails" (newOnly)
+      if (newOnly && !initialLoad && fetched.length > prevCountRef.current) {
+        const delta = fetched.length - prevCountRef.current;
+        toast.success(`You have ${delta} new email${delta > 1 ? "s" : ""}`);
+      }
+
+      prevCountRef.current = fetched.length;
       setEmails(fetched);
     } catch (err: any) {
       toast.error("Error fetching emails", {
@@ -120,13 +128,11 @@ export function EmailList({ initialEmails }: EmailListProps) {
 
   const filtered = emails
     .filter((e) => filter === "All" || e.triage === filter)
-    .sort(
-      (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
+    .sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp));
 
   return (
     <div className="rounded-md border p-4">
+      {/* Filters */}
       <div className="mb-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
         <Input
           className="w-full md:w-1/2 border border-black"
@@ -150,6 +156,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
         </Select>
       </div>
 
+      {/* Loading */}
       {loading && initialLoad && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -176,6 +183,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
         </div>
       )}
 
+      {/* Emails */}
       {!loading && (
         <ScrollArea className="h-[calc(100vh-128px)]">
           <div className="overflow-auto">
@@ -288,7 +296,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
                 ))}
               </div>
             ) : (
-              <table className="min-w-full text-sm border-separate border-spacing-y-1">
+              <table className="min-w-full text-sm border-separate divide-y">
                 <thead className="bg-muted text-left">
                   <tr>
                     <th className="px-4 py-2">Subject</th>
@@ -305,13 +313,11 @@ export function EmailList({ initialEmails }: EmailListProps) {
                       key={email.emailId}
                       className={triageColorMap[email.triage]}
                     >
-                      <td className="px-4 py-3">
-                        {email.subject || "No Subject"}
-                      </td>
-                      <td className="px-4 py-3">{email.fromEmail}</td>
-                      <td className="px-4 py-3">{email.toEmail}</td>
-                      <td className="px-4 py-3">{email.triage}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2">{email.subject}</td>
+                      <td className="px-4 py-2">{email.fromEmail}</td>
+                      <td className="px-4 py-2">{email.toEmail}</td>
+                      <td className="px-4 py-2">{email.triage}</td>
+                      <td className="px-4 py-2">
                         {new Date(email.timestamp).toLocaleString("en-GB", {
                           day: "2-digit",
                           month: "2-digit",
@@ -323,10 +329,43 @@ export function EmailList({ initialEmails }: EmailListProps) {
                         })}{" "}
                         UTC
                       </td>
-                      <td className="px-4 py-3 flex justify-center items-center gap-2">
-                        <ShieldAlert className="w-5 h-5 text-yellow-500" />
-                        <Trash2 className="w-5 h-5 text-red-500" />
-                        <Flag className="w-5 h-5 text-green-500" />
+                      <td className="px-4 py-2 flex justify-center items-center gap-3">
+                        <button
+                          onClick={() =>
+                            updateTriageAction(
+                              email.emailId,
+                              email.timestamp,
+                              "Offensive"
+                            ).then(fetchEmails)
+                          }
+                          title="Offensive"
+                        >
+                          <ShieldAlert className="w-5 h-5 text-yellow-500" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            updateTriageAction(
+                              email.emailId,
+                              email.timestamp,
+                              "Spam"
+                            ).then(fetchEmails)
+                          }
+                          title="Spam"
+                        >
+                          <Trash2 className="w-5 h-5 text-red-500" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            updateTriageAction(
+                              email.emailId,
+                              email.timestamp,
+                              "Flagged"
+                            ).then(fetchEmails)
+                          }
+                          title="Flagged"
+                        >
+                          <Flag className="w-5 h-5 text-green-500" />
+                        </button>
                       </td>
                     </tr>
                   ))}

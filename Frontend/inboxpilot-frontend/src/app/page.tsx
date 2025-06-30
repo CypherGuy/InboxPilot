@@ -1,22 +1,19 @@
 import { redirect } from "next/navigation";
 import { getAuthCookie, getUserIDCookie } from "@/lib/auth.server";
 import { getEmailsAction } from "@/actions/data";
-import { EmailList } from "@/components/email-list";
+import DashboardClient from "@/components/DashboardClient";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import ViewToggleClient from "@/components/ui/view-toggle";
 
 export default async function DashboardPage({ searchParams }: any) {
   const token = await getAuthCookie();
-  const userID = await getUserIDCookie();
   if (!token) {
     redirect("/login");
   }
 
   const triageFilter =
-    typeof searchParams?.triage === "string"
-      ? await searchParams.triage
-      : undefined;
+    typeof searchParams?.triage === "string" ? searchParams.triage : undefined;
 
   const { emails } = await getEmailsAction(triageFilter);
 
@@ -32,7 +29,7 @@ export default async function DashboardPage({ searchParams }: any) {
       </header>
 
       <div className="flex-1 rounded-xl bg-muted/50 p-4">
-        <EmailList initialEmails={emails} />
+        <DashboardClient initialEmails={emails} />
       </div>
     </div>
   );

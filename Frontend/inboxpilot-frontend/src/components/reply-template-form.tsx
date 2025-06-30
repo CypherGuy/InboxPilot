@@ -58,6 +58,8 @@ export function ReplyTemplateForm({
         <CardTitle>Default Reply Message</CardTitle>
         <CardDescription>
           Update your default reply message for Partnerships-related emails.
+          Note that in order to use this feature, you must have a valid email
+          address configured. This may take up to 24 hours to take effect.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

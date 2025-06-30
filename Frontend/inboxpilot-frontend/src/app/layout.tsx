@@ -3,9 +3,8 @@ import type { Metadata } from "next/types";
 import { Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import { cn } from "@/lib/utils";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { Toaster } from "sonner";
+import ClientRoot from "@/app/layout.client";
 
 import "./globals.css";
 
@@ -21,9 +20,7 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Await the cookieStore to access get()
   const cookieStore = await cookies();
-
   const defaultOpen = cookieStore.get("sidebar:state")?.value === "true";
   const isAuthenticated = !!cookieStore.get("inboxpilot_auth_token")?.value;
 
@@ -36,10 +33,8 @@ export default async function RootLayout({
         )}
       >
         {isAuthenticated ? (
-          <SidebarProvider defaultOpen={defaultOpen}>
-            <AppSidebar />
-            <SidebarInset>{children}</SidebarInset>
-          </SidebarProvider>
+          // Handles sidebar + polling + toasts
+          <ClientRoot defaultOpen={defaultOpen}>{children}</ClientRoot>
         ) : (
           children
         )}

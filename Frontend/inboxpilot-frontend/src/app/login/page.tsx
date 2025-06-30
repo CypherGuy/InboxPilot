@@ -1,9 +1,9 @@
+// src/app/login/page.tsx
 "use client";
 
 import Link from "next/link";
 import { useState, FormEvent } from "react";
 import { loginAction } from "@/actions/auth";
-import { setLocalAuth } from "@/lib/auth.client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -28,29 +28,46 @@ export default function LoginPage() {
     const formData = new FormData(e.currentTarget);
     const result = await loginAction(formData);
 
-    if (result.success && result.userID && result.proxyEmail && result.token) {
+    if (result.success) {
       // Store in localStorage for client-side use:
-      setLocalAuth(result.token, result.userID, result.proxyEmail);
-
-      toast.success("Login successful", {
-        description: "Redirecting to your dashboard...",
-      });
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("showLoginToast", "true");
+        localStorage.setItem("inboxpilot_auth_token", result.token!);
+        localStorage.setItem(
+          "inboxpilot_user",
+          JSON.stringify({
+            userID: result.userID!,
+            proxyEmail: result.proxyEmail!,
+          })
+        );
+      }
       window.location.href = "/";
     } else {
-      const msg = result.message ?? "Login failed";
-      setError(msg);
-      toast.error("Login failed", { description: msg });
+      let errorMessage: string =
+        result.message ?? "An unexpected error occurred.";
+      try {
+        const parsed = JSON.parse(errorMessage);
+        errorMessage = parsed.message || parsed.error || errorMessage;
+      } catch {
+        // ignore JSON errors
+      }
+      setError(errorMessage);
+      toast.error("Login failed", {
+        description: errorMessage,
+      });
     }
 
     setLoading(false);
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-white">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background font-sans antialiased">
       <Card className="mx-auto w-full max-w-sm">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Login</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-2xl font-bold text-foreground">
+            Login
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
             Enter your username to access your dashboard
           </CardDescription>
         </CardHeader>
@@ -82,13 +99,17 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-4 text-center text-sm">
-            Don’t have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link href="/signup" className="underline">
-              Sign up
+              Sign&nbsp;up
             </Link>
           </div>
         </CardContent>
       </Card>
+
+      <footer className="mt-6 text-center text-sm text-muted-foreground">
+        © 2025 InboxPilot
+      </footer>
     </div>
   );
 }
