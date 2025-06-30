@@ -128,8 +128,8 @@ def extract_body(msg):
 def classify_email(subject, body):
     system_prompt = (
         "You are a classification assistant. "
-        "Categorize this email into exactly one of: Sales focused emails (Someone trying to sell you something), "
-        "Job Applications, Spam, Partnerships including future business opportunities, Miscellaneous (Not any of the previous), "
+        "Categorize this email into exactly one of: Sales (Someone trying to sell you something), "
+        "Applications (Job applications either to or from you), Spam, Partnerships (including future business opportunities), Miscellaneous (Not any of the previous but is sortable), "
         "or Unsorted (Unable to be sorted due to length etc..). "
         "If the email contains abusive, threatening, or inappropriate content in a non-casual way, choose 'Offensive'. "
         "If it contains deceptive or scam-like content (e.g. phishing), choose 'Spam'. "
