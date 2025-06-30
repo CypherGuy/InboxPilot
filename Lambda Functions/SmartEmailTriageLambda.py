@@ -3,6 +3,7 @@ import email
 from email import policy
 import json
 import uuid
+import traceback
 from datetime import datetime, timedelta
 from email.utils import parseaddr
 from boto3.dynamodb.conditions import Attr
@@ -35,24 +36,28 @@ def lambda_handler(event, context):
         bucket = s3rec["bucket"]["name"]
         key = s3rec["object"]["key"]
 
+    # fetch raw email bytes from S3
     raw = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
     msg = email.message_from_bytes(raw, policy=policy.default)
+
     subject = msg.get("subject", "[No Subject]")
     sender = msg.get("from", "[Unknown sender]")
     sender_name, sender_email = parseaddr(sender)
     body = extract_body(msg)
 
-    # Try to extract recipient from SES, fallback to email headers
+    # Determine the recipient address
     to_header = msg.get("to", "[Unknown recipient]")
     _, fallback_to = parseaddr(to_header)
     recipients = rec0.get("ses", {}).get("receipt", {}).get("recipients", [])
     to_email = recipients[0] if recipients else fallback_to
 
+    # classify the email
     triage, is_offensive = classify_email(subject, body)
 
+    auto_reply = None
     if triage == "Partnerships":
         try:
-            # Find user by proxy email, not userID
+            # find the user by proxyEmail to send auto-reply
             user_resp = users_table.scan(
                 FilterExpression=Attr("proxyEmail").eq(to_email)
             )
@@ -61,6 +66,7 @@ def lambda_handler(event, context):
                 reply_tmpl = user_item.get(
                     "replyTemplate", "Thanks for reaching out!")
                 proxy_email = user_item.get("proxyEmail", to_email)
+                auto_reply = reply_tmpl
                 send_reply_email(
                     reply_from=proxy_email,
                     reply_to=sender_email,
@@ -68,24 +74,28 @@ def lambda_handler(event, context):
                     original_subject=subject
                 )
             else:
-                print(f"❌ No user found with proxyEmail = {to_email}")
+                print(f"❌ No user with proxyEmail={to_email}")
         except Exception as e:
-            print(f"❌ Error during auto-reply process: {e}")
+            print(f"❌ Auto-reply error: {e}")
 
+    # build the DynamoDB item
     item = {
-        "emailId": str(uuid.uuid4()),
-        "userID": to_email,
+        "emailId":    str(uuid.uuid4()),
+        "userID":     to_email,
         "senderName": sender_name,
-        "fromEmail": sender_email,
-        "toEmail": to_email,
-        "subject": subject,
-        "body": body[:1000],
-        "triage": triage,
-        "timestamp": datetime.utcnow().isoformat()
+        "fromEmail":  sender_email,
+        "toEmail":    to_email,
+        "subject":    subject,
+        "body":       body[:1000],
+        "triage":     triage,
+        "timestamp": datetime.utcnow().replace(microsecond=0).isoformat()
     }
     if is_offensive:
         item["expirationTime"] = int(
             (datetime.utcnow() + timedelta(days=30)).timestamp())
+    if auto_reply:
+        item["autoReply"] = auto_reply
+        item["autoReplySentAt"] = datetime.utcnow().isoformat()
 
     emails_table.put_item(Item=item)
     return {"statusCode": 200}
@@ -94,10 +104,12 @@ def lambda_handler(event, context):
 def extract_body(msg):
     text = None
     if msg.is_multipart():
+        # prefer plain-text part
         for part in msg.walk():
             if part.get_content_type() == "text/plain":
                 text = part.get_content()
                 break
+        # fallback to HTML
         if not text:
             for part in msg.walk():
                 if part.get_content_type() == "text/html":
@@ -109,15 +121,17 @@ def extract_body(msg):
     if not text:
         return ""
 
+    # normalize line endings
     return text.replace("\r\n", "\n").replace("\r", "\n").strip()
 
 
 def classify_email(subject, body):
     system_prompt = (
         "You are a classification assistant. "
-        "Categorize this email into exactly one of: Sales, Applications, Spam, Partnerships, Miscellaneous, or Unsorted. "
+        "Categorize this email into exactly one of: Sales focused emails (Someone trying to sell you something), Job Applications, Spam, Partnerships including future business opportunities, Miscellaneous (Not any of the previous), or Unsorted (Unable to be sorted due to length etc..). "
         "If the email contains abusive, threatening, or inappropriate content in a non-casual way, choose 'Offensive'. "
-        "If it contains deceptive or scam-like content (e.g., phishing), choose 'Spam'. "
+        "If it contains deceptive or scam-like content (e.g. phishing), choose 'Spam'. "
+        "If a significant majority of an email cannot be read for whatever reason, mark it as 'Unsorted'."
         "Only respond with the single label in the exact case as listed."
     )
     payload = {
@@ -155,7 +169,7 @@ def classify_email(subject, body):
 
         return ("Offensive", True) if label.lower() == "offensive" else (label, False)
     except Exception as e:
-        print("❌ Error during classification:", str(e))
+        print("❌ Classification error:", e)
         return "Unknown", False
 
 

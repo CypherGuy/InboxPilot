@@ -8,31 +8,33 @@ export function useNewEmailNotifier(pollIntervalSec = 15) {
 
   useEffect(() => {
     let stopped = false;
+    const notifSound =
+      typeof Audio !== "undefined" ? new Audio("/ping.mp3") : null;
 
     async function check() {
       try {
         const { emails } = await getEmailsAction(undefined, true);
         const now = emails.length;
         if (prevCount.current !== 0 && now > prevCount.current) {
-          toast.success(
-            `You have ${now - prevCount.current} new email${
-              now - prevCount.current > 1 ? "s" : ""
-            }`
-          );
+          const delta = now - prevCount.current;
+          // play a ping noise
+          notifSound?.play().catch(() => {});
+          toast.success(`You have ${delta} new email${delta > 1 ? "s" : ""}`);
         }
         prevCount.current = now;
-      } catch {}
+      } catch {
+        // ignore
+      }
     }
 
     check();
-
-    const iv = setInterval(() => {
+    const iv = window.setInterval(() => {
       if (!stopped) check();
     }, pollIntervalSec * 1000);
 
     return () => {
       stopped = true;
-      clearInterval(iv);
+      window.clearInterval(iv);
     };
   }, [pollIntervalSec]);
 }

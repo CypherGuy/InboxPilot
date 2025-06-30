@@ -37,7 +37,7 @@ def make_response(status_code, body_dict, event=None):
         "headers": {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": cors_origin,
-            "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token",
+            "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Amz-Date,X-Amz-Security-Token",
             "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
             "Access-Control-Allow-Credentials": "true"
         },
@@ -115,7 +115,6 @@ def login_handler(event, context):
     # Remove password before returning user data
     stored_user.pop("password", None)
 
-    # Return both the user object and the auth token
     return make_response(200, {
         "message": "Login successful",
         "token": SECRET_TOKEN,
@@ -146,23 +145,29 @@ def emails_handler(event, context):
         triage = qs.get("triage")
         new_only = qs.get("new") == "true"
 
+        print(
+            f"emails_handler called with new_only={new_only}, triage={triage}, toEmail={to_email}")
+
         if not to_email:
             return make_response(400, {"error": "Missing toEmail"}, event)
 
         filter_expression = Attr("toEmail").eq(to_email)
 
-        # if ?new=true, only emails from the last 2 hours
         if new_only:
-            cutoff_ts = time.time() - 2 * 60 * 60
+            cutoff_ts = time.time() - 60 * 60
             cutoff_iso = time.strftime(
                 "%Y-%m-%dT%H:%M:%S", time.gmtime(cutoff_ts))
+            print(f"🔍 new_only filter: cutoff_iso = {cutoff_iso}")
             filter_expression &= Attr("timestamp").gt(cutoff_iso)
 
         if triage and triage != "All Emails":
             filter_expression &= Attr("triage").eq(triage)
 
+        print("🔍 final FilterExpression:", filter_expression)
         email_response = emails_table.scan(FilterExpression=filter_expression)
         emails = email_response.get("Items", [])
+        print(
+            f"🔍 scan returned {len(emails)} items: {[e.get('timestamp') for e in emails]}")
 
         return make_response(200, {"emails": emails}, event)
 

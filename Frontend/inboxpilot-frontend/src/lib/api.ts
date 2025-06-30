@@ -1,4 +1,4 @@
-import { getAuthToken } from "./auth.client";
+import { getAuthToken, getProxyEmail } from "./auth.client";
 
 function resolveBaseUrl(): string {
   const env =
@@ -44,5 +44,6 @@ export async function apiRequest(
 
 export async function filterEmails(query: string, userID: string) {
   const token = getAuthToken() ?? "";
-  return await apiRequest("/filter", "POST", { userID, query }, token);
+  const proxyEmail = getProxyEmail();
+  return await apiRequest("/filter", "POST", { proxyEmail, query }, token);
 }
