@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { getEmailsAction, updateTriageAction } from "@/actions/data";
 import { apiRequest } from "@/lib/api";
-import { getAuthToken, getUserID } from "@/lib/auth.client";
+import { getAuthToken, getProxyEmail } from "@/lib/auth.client";
 import { Email } from "@/types/email";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -39,7 +39,7 @@ const triageColorMap: Record<Email["triage"], string> = {
 
 export function EmailList({ initialEmails }: EmailListProps) {
   const searchParams = useSearchParams();
-  const serverFilter = searchParams.get("triage");
+  const serverFilter = searchParams.get("triage") ?? undefined;
   const newOnly = searchParams.get("new") === "true";
   const viewMode = (searchParams.get("view") || "table") as "grid" | "table";
 
@@ -65,17 +65,12 @@ export function EmailList({ initialEmails }: EmailListProps) {
     if (initialLoad) setLoading(true);
 
     try {
-      const { emails: fetched } = await getEmailsAction(
-        serverFilter ?? undefined,
-        newOnly
-      );
-
-      // only notify if user is viewing "Recent Emails" (newOnly)
-      if (newOnly && !initialLoad && fetched.length > prevCountRef.current) {
-        const delta = fetched.length - prevCountRef.current;
-        toast.success(`You have ${delta} new email${delta > 1 ? "s" : ""}`);
+      const { emails: fetched } = await getEmailsAction(serverFilter, newOnly);
+      if (fetched.length > prevCountRef.current) {
+        toast.success(
+          `${fetched.length - prevCountRef.current} new email(s) received`
+        );
       }
-
       prevCountRef.current = fetched.length;
       setEmails(fetched);
     } catch (err: any) {
@@ -103,8 +98,8 @@ export function EmailList({ initialEmails }: EmailListProps) {
     setLoading(true);
     try {
       const token = getAuthToken();
-      const userID = getUserID();
-      if (!token || !userID) {
+      const proxyEmail = getProxyEmail();
+      if (!token || !proxyEmail) {
         toast.error("Missing authentication", {
           description: "You are not logged in.",
         });
@@ -113,10 +108,10 @@ export function EmailList({ initialEmails }: EmailListProps) {
       const result = await apiRequest(
         "/filter",
         "POST",
-        { userID, query },
+        { userID: proxyEmail, query },
         token
       );
-      setEmails(result);
+      setEmails(result.emails);
     } catch (err: any) {
       toast.error("Filter error", {
         description: err.message || "Could not apply natural language filter.",
@@ -132,7 +127,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
 
   return (
     <div className="rounded-md border p-4">
-      {/* Filters */}
+      {/* query + filter UI */}
       <div className="mb-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
         <Input
           className="w-full md:w-1/2 border border-black"
@@ -156,7 +151,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
         </Select>
       </div>
 
-      {/* Loading */}
+      {/* loading states */}
       {loading && initialLoad && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -183,7 +178,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
         </div>
       )}
 
-      {/* Emails */}
+      {/* email list */}
       {!loading && (
         <ScrollArea className="h-[calc(100vh-128px)]">
           <div className="overflow-auto">
@@ -200,11 +195,11 @@ export function EmailList({ initialEmails }: EmailListProps) {
                     key={email.emailId}
                     className={`relative border ${
                       triageColorMap[email.triage]
-                    }`}
+                    } break-words`}
                   >
                     <CardHeader className="space-y-1">
                       <div className="flex justify-between items-start gap-2">
-                        <CardTitle className="text-base font-semibold max-w-[85%]">
+                        <CardTitle className="text-base font-semibold max-w-[85%] break-words">
                           {email.subject || "No Subject"}
                         </CardTitle>
                         <div className="flex gap-1">
@@ -271,15 +266,17 @@ export function EmailList({ initialEmails }: EmailListProps) {
                         UTC
                       </p>
                       <Separator className="my-2 border-gray-900" />
-                      {(() => {
+                      {(function () {
                         const isExpanded = expandedEmailIds.has(email.emailId);
                         const limit = 150;
                         const text = isExpanded
                           ? email.body
                           : email.body.slice(0, limit);
                         return (
-                          <>
-                            <p className="whitespace-pre-wrap">{text}</p>
+                          <Fragment>
+                            <p className="break-words whitespace-pre-wrap">
+                              {text}
+                            </p>
                             {email.body.length > limit && (
                               <button
                                 onClick={() => toggleExpand(email.emailId)}
@@ -288,7 +285,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
                                 {isExpanded ? "Show less" : "Show more"}
                               </button>
                             )}
-                          </>
+                          </Fragment>
                         );
                       })()}
                     </CardContent>
@@ -296,7 +293,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
                 ))}
               </div>
             ) : (
-              <table className="min-w-full text-sm border-separate divide-y">
+              <table className="min-w-full text-sm border-separate border-spacing-y-1">
                 <thead className="bg-muted text-left">
                   <tr>
                     <th className="px-4 py-2">Subject</th>
@@ -313,11 +310,13 @@ export function EmailList({ initialEmails }: EmailListProps) {
                       key={email.emailId}
                       className={triageColorMap[email.triage]}
                     >
-                      <td className="px-4 py-2">{email.subject}</td>
-                      <td className="px-4 py-2">{email.fromEmail}</td>
-                      <td className="px-4 py-2">{email.toEmail}</td>
-                      <td className="px-4 py-2">{email.triage}</td>
-                      <td className="px-4 py-2">
+                      <td className="px-4 py-3">
+                        {email.subject || "No Subject"}
+                      </td>
+                      <td className="px-4 py-3">{email.fromEmail}</td>
+                      <td className="px-4 py-3">{email.toEmail}</td>
+                      <td className="px-4 py-3">{email.triage}</td>
+                      <td className="px-4 py-3">
                         {new Date(email.timestamp).toLocaleString("en-GB", {
                           day: "2-digit",
                           month: "2-digit",
@@ -329,7 +328,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
                         })}{" "}
                         UTC
                       </td>
-                      <td className="px-4 py-2 flex justify-center items-center gap-3">
+                      <td className="px-4 py-3 flex justify-center items-center gap-3">
                         <button
                           onClick={() =>
                             updateTriageAction(

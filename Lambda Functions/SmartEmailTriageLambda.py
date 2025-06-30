@@ -36,7 +36,6 @@ def lambda_handler(event, context):
         bucket = s3rec["bucket"]["name"]
         key = s3rec["object"]["key"]
 
-    # fetch raw email bytes from S3
     raw = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
     msg = email.message_from_bytes(raw, policy=policy.default)
 
@@ -88,14 +87,15 @@ def lambda_handler(event, context):
         "subject":    subject,
         "body":       body[:1000],
         "triage":     triage,
-        "timestamp": datetime.utcnow().replace(microsecond=0).isoformat()
+        "timestamp":  datetime.utcnow().replace(microsecond=0).isoformat()
     }
     if is_offensive:
         item["expirationTime"] = int(
             (datetime.utcnow() + timedelta(days=30)).timestamp())
     if auto_reply:
         item["autoReply"] = auto_reply
-        item["autoReplySentAt"] = datetime.utcnow().isoformat()
+        item["autoReplySentAt"] = datetime.utcnow().replace(
+            microsecond=0).isoformat()
 
     emails_table.put_item(Item=item)
     return {"statusCode": 200}
@@ -128,7 +128,9 @@ def extract_body(msg):
 def classify_email(subject, body):
     system_prompt = (
         "You are a classification assistant. "
-        "Categorize this email into exactly one of: Sales focused emails (Someone trying to sell you something), Job Applications, Spam, Partnerships including future business opportunities, Miscellaneous (Not any of the previous), or Unsorted (Unable to be sorted due to length etc..). "
+        "Categorize this email into exactly one of: Sales focused emails (Someone trying to sell you something), "
+        "Job Applications, Spam, Partnerships including future business opportunities, Miscellaneous (Not any of the previous), "
+        "or Unsorted (Unable to be sorted due to length etc..). "
         "If the email contains abusive, threatening, or inappropriate content in a non-casual way, choose 'Offensive'. "
         "If it contains deceptive or scam-like content (e.g. phishing), choose 'Spam'. "
         "If a significant majority of an email cannot be read for whatever reason, mark it as 'Unsorted'."
