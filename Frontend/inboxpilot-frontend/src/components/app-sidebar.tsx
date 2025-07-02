@@ -48,7 +48,15 @@ const emailCategories = [
   { title: "Flagged", url: "/?triage=Flagged", icon: Flag },
 ];
 
-export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
+interface AppSidebarProps {
+  filter: string;
+  setFilter: (f: string) => void;
+}
+
+export function AppSidebar(
+  { filter, setFilter }: AppSidebarProps,
+  props: React.ComponentProps<typeof Sidebar>
+) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTriage = searchParams.get("triage");

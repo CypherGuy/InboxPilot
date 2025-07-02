@@ -16,7 +16,7 @@ dynamodb = boto3.resource("dynamodb")
 emails_table = dynamodb.Table("Emails")
 users_table = dynamodb.Table("Users")
 
-# Configuration
+# Constants for Bedrock
 MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
 GUARDRAIL_ID = "eca3sfgwx0sr"
 GUARDRAIL_VERSION = "DRAFT"
@@ -36,6 +36,7 @@ def lambda_handler(event, context):
         bucket = s3rec["bucket"]["name"]
         key = s3rec["object"]["key"]
 
+    # fetch raw email bytes from S3
     raw = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
     msg = email.message_from_bytes(raw, policy=policy.default)
 
@@ -44,13 +45,11 @@ def lambda_handler(event, context):
     sender_name, sender_email = parseaddr(sender)
     body = extract_body(msg)
 
-    # Determine the recipient address
     to_header = msg.get("to", "[Unknown recipient]")
     _, fallback_to = parseaddr(to_header)
     recipients = rec0.get("ses", {}).get("receipt", {}).get("recipients", [])
     to_email = recipients[0] if recipients else fallback_to
 
-    # classify the email
     triage, is_offensive = classify_email(subject, body)
 
     auto_reply = None
@@ -178,6 +177,7 @@ def classify_email(subject, body):
 def send_reply_email(reply_from, reply_to, reply_body, original_subject):
     try:
         verified_sender = "noreply@inboxpilot.xyz"
+        # send via SES with proper subject
         ses.send_email(
             Source=verified_sender,
             Destination={"ToAddresses": [reply_to]},

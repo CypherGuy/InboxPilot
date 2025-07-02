@@ -24,6 +24,8 @@ import { ShieldAlert, Trash2, Flag, Loader2 } from "lucide-react";
 
 interface EmailListProps {
   initialEmails: Email[];
+  filter: string;
+  setFilter: (f: string) => void;
 }
 
 const triageColorMap: Record<Email["triage"], string> = {
@@ -37,7 +39,11 @@ const triageColorMap: Record<Email["triage"], string> = {
   Partnerships: "bg-emerald-100 border-emerald-300",
 };
 
-export function EmailList({ initialEmails }: EmailListProps) {
+export function EmailList({
+  initialEmails,
+  filter,
+  setFilter,
+}: EmailListProps) {
   const searchParams = useSearchParams();
   const serverFilter = searchParams.get("triage") ?? undefined;
   const newOnly = searchParams.get("new") === "true";
@@ -46,7 +52,6 @@ export function EmailList({ initialEmails }: EmailListProps) {
   const [emails, setEmails] = useState<Email[]>(initialEmails);
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
-  const [filter, setFilter] = useState<string>("All");
   const [query, setQuery] = useState<string>("");
   const [expandedEmailIds, setExpandedEmailIds] = useState<Set<string>>(
     new Set()
@@ -60,38 +65,6 @@ export function EmailList({ initialEmails }: EmailListProps) {
       return next;
     });
   };
-
-  const fetchEmails = useCallback(async () => {
-    if (initialLoad) setLoading(true);
-
-    try {
-      const { emails: fetched } = await getEmailsAction(serverFilter, newOnly);
-      if (fetched.length > prevCountRef.current) {
-        toast.success(
-          `${fetched.length - prevCountRef.current} new email(s) received`
-        );
-      }
-      prevCountRef.current = fetched.length;
-      setEmails(fetched);
-    } catch (err: any) {
-      toast.error("Error fetching emails", {
-        description: err.message || "Could not load emails.",
-      });
-      setEmails([]);
-    } finally {
-      setLoading(false);
-      setInitialLoad(false);
-    }
-  }, [serverFilter, newOnly, initialLoad]);
-
-  useEffect(() => {
-    fetchEmails();
-    const interval = setInterval(
-      () => fetchEmails(),
-      parseInt(localStorage.getItem("refreshInterval") || "15", 10) * 1000
-    );
-    return () => clearInterval(interval);
-  }, [fetchEmails]);
 
   const handleQuerySubmit = async () => {
     if (!query.trim()) return;
@@ -112,6 +85,7 @@ export function EmailList({ initialEmails }: EmailListProps) {
         token
       );
       setEmails(result.emails);
+      setFilter("All");
     } catch (err: any) {
       toast.error("Filter error", {
         description: err.message || "Could not apply natural language filter.",
