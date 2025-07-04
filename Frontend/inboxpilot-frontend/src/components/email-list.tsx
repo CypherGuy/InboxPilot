@@ -1,12 +1,11 @@
-// src/components/email-list.tsx
 "use client";
 
-import { Fragment, useEffect, useState, useCallback, useRef } from "react";
+import { Fragment, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { getEmailsAction, updateTriageAction } from "@/actions/data";
-import { apiRequest } from "@/lib/api";
 import { getAuthToken, getProxyEmail } from "@/lib/auth.client";
+import { apiRequest } from "@/lib/api";
+import { updateTriageAction } from "@/actions/data";
 import { Email } from "@/types/email";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -45,18 +44,39 @@ export function EmailList({
   setFilter,
 }: EmailListProps) {
   const searchParams = useSearchParams();
-  const serverFilter = searchParams.get("triage") ?? undefined;
   const newOnly = searchParams.get("new") === "true";
   const viewMode = (searchParams.get("view") || "table") as "grid" | "table";
 
   const [emails, setEmails] = useState<Email[]>(initialEmails);
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
-  const [query, setQuery] = useState<string>("");
+  const [query, setQuery] = useState("");
   const [expandedEmailIds, setExpandedEmailIds] = useState<Set<string>>(
     new Set()
   );
   const prevCountRef = useRef(initialEmails.length);
+
+  const handleTriageUpdate = async (
+    emailId: string,
+    timestamp: string,
+    newTriage: Email["triage"]
+  ) => {
+    try {
+      const token = getAuthToken();
+      if (!token) throw new Error("Not authenticated");
+      await updateTriageAction(emailId, timestamp, newTriage);
+      setEmails((prev) =>
+        prev.map((e) =>
+          e.emailId === emailId ? { ...e, triage: newTriage } : e
+        )
+      );
+      toast.success(`Marked as ${newTriage}`);
+    } catch (err: any) {
+      toast.error("Could not update triage", {
+        description: err.message,
+      });
+    }
+  };
 
   const toggleExpand = (emailId: string) => {
     setExpandedEmailIds((prev) => {
@@ -70,28 +90,40 @@ export function EmailList({
     if (!query.trim()) return;
     setLoading(true);
     try {
-      const token = getAuthToken();
       const proxyEmail = getProxyEmail();
+      const token = getAuthToken();
       if (!token || !proxyEmail) {
         toast.error("Missing authentication", {
           description: "You are not logged in.",
         });
         return;
       }
-      const result = await apiRequest(
+      const data = await apiRequest(
         "/filter",
         "POST",
-        { userID: proxyEmail, query },
+        { userID: proxyEmail, proxyEmail, query },
         token
       );
-      setEmails(result.emails);
+
+      setEmails(data.emails);
       setFilter("All");
     } catch (err: any) {
-      toast.error("Filter error", {
-        description: err.message || "Could not apply natural language filter.",
-      });
+      let description =
+        typeof err.message === "string"
+          ? err.message
+          : "Unexpected error occurred.";
+
+      try {
+        const parsed = JSON.parse(err.message);
+        description = parsed.details || parsed.error || description;
+      } catch {
+        // Ignore
+      }
+
+      toast.error("There was an error while filtering", { description });
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
   };
 
@@ -125,7 +157,7 @@ export function EmailList({
         </Select>
       </div>
 
-      {/* loading states */}
+      {/* Loading states */}
       {loading && initialLoad && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -137,7 +169,6 @@ export function EmailList({
               <CardContent className="space-y-2">
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-[80%]" />
-                <Skeleton className="h-4 w-[90%]" />
               </CardContent>
             </Card>
           ))}
@@ -146,13 +177,11 @@ export function EmailList({
       {loading && !initialLoad && (
         <div className="flex flex-col items-center justify-center h-64 space-y-2">
           <Loader2 className="w-8 h-8 animate-spin" />
-          <p className="text-sm text-muted-foreground">
-            Filtering, please wait...
-          </p>
+          <p className="text-sm text-muted-foreground">Filtering…</p>
         </div>
       )}
 
-      {/* email list */}
+      {/* Email list */}
       {!loading && (
         <ScrollArea className="h-[calc(100vh-128px)]">
           <div className="overflow-auto">
@@ -169,50 +198,50 @@ export function EmailList({
                     key={email.emailId}
                     className={`relative border ${
                       triageColorMap[email.triage]
-                    } break-words`}
+                    }`}
                   >
                     <CardHeader className="space-y-1">
                       <div className="flex justify-between items-start gap-2">
-                        <CardTitle className="text-base font-semibold max-w-[85%] break-words">
+                        <CardTitle className="text-base font-semibold max-w-[85%]">
                           {email.subject || "No Subject"}
                         </CardTitle>
                         <div className="flex gap-1">
                           <button
                             onClick={() =>
-                              updateTriageAction(
+                              handleTriageUpdate(
                                 email.emailId,
                                 email.timestamp,
                                 "Offensive"
-                              ).then(fetchEmails)
+                              )
                             }
-                            title="Mark as Offensive"
+                            title="Mark Offensive"
                             className="p-1 rounded bg-yellow-500 hover:bg-yellow-600 text-white"
                           >
                             <ShieldAlert className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() =>
-                              updateTriageAction(
+                              handleTriageUpdate(
                                 email.emailId,
                                 email.timestamp,
                                 "Spam"
-                              ).then(fetchEmails)
+                              )
                             }
-                            title="Mark as Spam"
+                            title="Mark Spam"
                             className="p-1 rounded bg-red-500 hover:bg-red-600 text-white"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() =>
-                              updateTriageAction(
+                              handleTriageUpdate(
                                 email.emailId,
                                 email.timestamp,
                                 "Flagged"
-                              ).then(fetchEmails)
+                              )
                             }
-                            title="Mark as Flagged"
-                            className="p-1 rounded bg-green-500 hover:bg-green-600 text-white"
+                            title="Mark Flagged"
+                            className="p-1 rounded bg-purple-500 hover:bg-purple-600 text-white"
                           >
                             <Flag className="w-4 h-4" />
                           </button>
@@ -240,18 +269,17 @@ export function EmailList({
                         UTC
                       </p>
                       <Separator className="my-2 border-gray-900" />
-                      {(function () {
+                      {(() => {
                         const isExpanded = expandedEmailIds.has(email.emailId);
-                        const limit = 150;
                         const text = isExpanded
                           ? email.body
-                          : email.body.slice(0, limit);
+                          : email.body.slice(0, 150);
                         return (
                           <Fragment>
-                            <p className="break-words whitespace-pre-wrap">
+                            <p className="whitespace-pre-wrap break-words">
                               {text}
                             </p>
-                            {email.body.length > limit && (
+                            {email.body.length > 150 && (
                               <button
                                 onClick={() => toggleExpand(email.emailId)}
                                 className="mt-1 text-sm underline text-blue-600"
@@ -302,14 +330,14 @@ export function EmailList({
                         })}{" "}
                         UTC
                       </td>
-                      <td className="px-4 py-3 flex justify-center items-center gap-3">
+                      <td className="px-4 py-3 flex gap-3 justify-center">
                         <button
                           onClick={() =>
-                            updateTriageAction(
+                            handleTriageUpdate(
                               email.emailId,
                               email.timestamp,
                               "Offensive"
-                            ).then(fetchEmails)
+                            )
                           }
                           title="Offensive"
                         >
@@ -317,11 +345,11 @@ export function EmailList({
                         </button>
                         <button
                           onClick={() =>
-                            updateTriageAction(
+                            handleTriageUpdate(
                               email.emailId,
                               email.timestamp,
                               "Spam"
-                            ).then(fetchEmails)
+                            )
                           }
                           title="Spam"
                         >
@@ -329,15 +357,15 @@ export function EmailList({
                         </button>
                         <button
                           onClick={() =>
-                            updateTriageAction(
+                            handleTriageUpdate(
                               email.emailId,
                               email.timestamp,
                               "Flagged"
-                            ).then(fetchEmails)
+                            )
                           }
                           title="Flagged"
                         >
-                          <Flag className="w-5 h-5 text-green-500" />
+                          <Flag className="w-5 h-5 text-purple-500" />
                         </button>
                       </td>
                     </tr>

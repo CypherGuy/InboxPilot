@@ -1,10 +1,9 @@
 import { redirect } from "next/navigation";
-import { getAuthCookie, getUserIDCookie } from "@/lib/auth.server";
+import { getAuthCookie } from "@/lib/auth.server";
 import { getEmailsAction } from "@/actions/data";
-import DashboardClient from "@/components/DashboardClient";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import ViewToggleClient from "@/components/ui/view-toggle";
+import EmailDashboardClient from "@/components/email-dashboard-client";
 
 export default async function DashboardPage({ searchParams }: any) {
   const token = await getAuthCookie();
@@ -14,8 +13,9 @@ export default async function DashboardPage({ searchParams }: any) {
 
   const triageFilter =
     typeof searchParams?.triage === "string" ? searchParams.triage : undefined;
+  const newOnly = searchParams?.new === "true";
 
-  const { emails } = await getEmailsAction(triageFilter);
+  const { emails } = await getEmailsAction(triageFilter, newOnly);
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
@@ -23,13 +23,13 @@ export default async function DashboardPage({ searchParams }: any) {
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <h1 className="text-xl font-semibold">Email Dashboard</h1>
-        <div className="ml-auto">
-          <ViewToggleClient />
-        </div>
       </header>
 
       <div className="flex-1 rounded-xl bg-muted/50 p-4">
-        <DashboardClient initialEmails={emails} />
+        <EmailDashboardClient
+          key={`${triageFilter ?? "all"}-${newOnly ? "new" : "all"}`}
+          initialEmails={emails}
+        />
       </div>
     </div>
   );

@@ -37,7 +37,7 @@ import {
 
 const emailCategories = [
   { title: "Recent Emails", url: "/?new=true", icon: Bell },
-  { title: "All Emails", url: "/?triage=All Emails", icon: Inbox },
+  { title: "All Emails", url: "/?triage=All%20Emails", icon: Inbox },
   { title: "Sales", url: "/?triage=Sales", icon: Mail },
   { title: "Applications", url: "/?triage=Applications", icon: Briefcase },
   { title: "Partnerships", url: "/?triage=Partnerships", icon: Tag },
@@ -48,15 +48,7 @@ const emailCategories = [
   { title: "Flagged", url: "/?triage=Flagged", icon: Flag },
 ];
 
-interface AppSidebarProps {
-  filter: string;
-  setFilter: (f: string) => void;
-}
-
-export function AppSidebar(
-  { filter, setFilter }: AppSidebarProps,
-  props: React.ComponentProps<typeof Sidebar>
-) {
+export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTriage = searchParams.get("triage");
@@ -73,7 +65,7 @@ export function AppSidebar(
     if (p) setDisplayEmail(p);
   }, []);
 
-  // Poll every 5s for the number of "recent" emails:
+  // Poll every 5s for the number of "recent" emails (past 2 hours)
   useEffect(() => {
     const poll = async () => {
       try {

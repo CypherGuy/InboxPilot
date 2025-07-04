@@ -45,8 +45,12 @@ export async function getEmailsAction(
 
   try {
     let endpoint = `/emails?toEmail=${encodeURIComponent(proxyEmail)}`;
-    if (triageFilter && triageFilter !== "All Emails") {
-      endpoint += `&triage=${encodeURIComponent(triageFilter)}`;
+    const hasValidTriage =
+      typeof triageFilter === "string" &&
+      triageFilter !== "All Emails" &&
+      triageFilter.toLowerCase() !== "undefined";
+    if (hasValidTriage) {
+      endpoint += `&triage=${encodeURIComponent(triageFilter!)}`;
     }
 
     if (newOnly) {

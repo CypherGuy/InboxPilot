@@ -1,4 +1,3 @@
-from typing import LiteralString
 import bcrypt
 import json
 import os
@@ -53,6 +52,187 @@ def make_response(status_code, body_dict, event=None):
         },
         "body": json.dumps(convert_decimals(body_dict)),
     }
+
+
+def invoke_and_parse_llm(nl_query: str) -> dict:
+    today: datetime = datetime.utcnow()
+    today_str: str = today.strftime("%Y-%m-%d")
+
+    system = (
+        "You are an API assistant that translates natural language into a JSON object "
+        "for filtering emails. Use only these keys: "
+        "\"triage\", \"fromEmail\", \"subject\", \"bodyContains\", "
+        "\"beforeDate\", \"afterDate\", \"onDate\".\n\n"
+        "You should choose the triage from this exact list (case-insensitive) and nothing else: "
+        "'sales', 'applications', 'partnerships', 'spam', 'miscellaneous', 'unsorted', 'offensive', 'flagged'.\n"
+        "If none apply, do not include a triage field.\n"
+        f"Today's date is {today_str}.\n"
+        "Interpret weekdays like 'Monday' or 'Tuesday' as the most recent past occurrence of that day, "
+        "unless the user explicitly says 'next' or specifies a future date.\n"
+        "If the user mentions a specific weekday and is referring to just that day, use onDate instead of afterDate/beforeDate.\n"
+        "Do not return any 'onDate', 'beforeDate', or 'afterDate' values that lie in the future.\n"
+        "Date fields must be ISO 8601 strings (e.g. '2024-05-01').\n"
+        "- For 'emails in May', use afterDate: 'YYYY-05-01', beforeDate: 'YYYY-05-31'.\n"
+        "- For 'emails on 10 June', use onDate: 'YYYY-06-10'.\n"
+        "- For 'last week', use a 7-day range ending today.\n"
+        "- If the query says 'after July 1st', use afterDate: 'YYYY-07-01'.\n"
+        "- If the query says 'before April 5th', use beforeDate: 'YYYY-04-05'.\n"
+        "- Always include the exact date in beforeDate and afterDate, unless the user says 'excluding' or 'strictly before/after'.\n"
+        "- Example: 'before June 30th' means beforeDate: 'YYYY-06-30' (inclusive).\n"
+        "- 'strictly before June 30th' means beforeDate: 'YYYY-06-29'.\n"
+        "Use as many fields as you can extract, but never hallucinate or invent.\n\n"
+        "If the user’s request doesn’t make sense (e.g., dates that don’t exist or entirely future dates), "
+        "respond *only* with a JSON error object exactly like:\n"
+        "{\n"
+        "  \"error\": \"INVALID_DATE_REQUEST\",\n"
+        "  \"message\": \"June only has 30 days.\"\n"
+        "}"
+    )
+    payload = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 200,
+        "system": system,
+        "messages": [{
+            "role": "user",
+            "content": [{"type": "text", "text": nl_query}]
+        }],
+    }
+    resp = bedrock.invoke_model(
+        modelId=MODEL_ID,
+        contentType="application/json",
+        accept="application/json",
+        guardrailVersion=GUARDRAIL_VERSION,
+        body=json.dumps(payload),
+    )
+    llm_out = json.loads(resp["body"].read().decode())
+    text = (llm_out.get("content") or [{"text": llm_out.get("completion", "")}])[
+        0]["text"].strip()
+
+    parsed = None
+    # Look for a JSON object in the text
+    m = re.search(r"\{[\s\S]*\}", text)
+    if m:
+        try:
+            parsed = json.loads(m.group(0))
+        except json.JSONDecodeError:
+            parsed = None
+    # Otherwise try to parse through the whole text
+    if parsed is None:
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            cleaned = text.strip().strip("\"'").lower()
+            if cleaned in ALLOWED_CATEGORIES:
+                return {"triage": cleaned.capitalize()}
+            raise ValueError(
+                f"No valid JSON filter found in LLM output: {text!r}")
+
+    if "error" in parsed:
+        return {
+            "error": parsed["error"],
+            "message": parsed.get("message", "")
+        }
+    if t := parsed.get("triage"):
+        parsed["triage"] = t.capitalize()
+
+    return parsed
+
+
+def filter_handler(event, context):
+    """
+    These contain a series of guardrails to help return a 
+    correct response based on what the AI sent.
+    """
+    try:
+
+        body = json.loads(event.get("body", "{}"))
+        user_id = body.get("userID")
+        proxy_email = body.get("proxyEmail")
+        natural_query = (body.get("query") or "").strip()
+
+        if not user_id or not natural_query:
+            return make_response(400, {"error": "Missing userID or query"}, event)
+
+        # Take out any triage at the start of the query
+        extracted_triage = None
+        for cat in ALLOWED_CATEGORIES:
+            if re.match(rf"^{cat}(?:\s+emails?)?\b", natural_query, re.IGNORECASE):
+                extracted_triage = cat.capitalize()
+                natural_query = re.sub(
+                    rf"^{cat}(?:\s+emails?)?\s*", "", natural_query, flags=re.IGNORECASE
+                ).strip()
+                break
+
+        criteria = {}
+        if natural_query:
+            criteria = invoke_and_parse_llm(natural_query)
+            # If the LLM signalled an error, perfect chance to return it directly to notify the user why their query failed.
+            if "error" in criteria:
+                return make_response(400, {
+                    "error": criteria["error"],
+                    "details": criteria["message"]
+                }, event)
+
+        if extracted_triage:
+            criteria["triage"] = extracted_triage
+
+        # Fallback if nothing got extracted
+        if not any(criteria.get(k) for k in [
+            "subject", "bodyContains", "triage",
+            "fromEmail", "beforeDate", "afterDate", "onDate"
+        ]):
+            q = (body.get("query") or "").lower()
+            expr = (
+                Attr("toEmail").eq(proxy_email or user_id) &
+                (Attr("subject").contains(q) | Attr("body").contains(q))
+            )
+            print("[filter] Fallback filter expression triggered")
+            items = emails_table.scan(FilterExpression=expr).get("Items", [])
+            return make_response(200, {"emails": items}, event)
+
+        # build the DynamoDB scan filter
+        expr = Attr("toEmail").eq(proxy_email or user_id)
+        if t := criteria.get("triage"):
+            expr &= Attr("triage").eq(t)
+        if f := criteria.get("fromEmail"):
+            expr &= Attr("fromEmail").contains(f)
+        if b := criteria.get("bodyContains"):
+            expr &= Attr("body").contains(b)
+
+        all_items = emails_table.scan(FilterExpression=expr).get("Items", [])
+
+        def to_dt(s): return datetime.fromisoformat(s)
+        subj_q = (criteria.get("subject") or "").strip().lower()
+        subj_q_singular = subj_q[:-1] if subj_q.endswith("s") else subj_q
+        body_q = (criteria.get("bodyContains") or "").strip().lower()
+
+        filtered = []
+        for item in all_items:
+            subj = (item.get("subject") or "").lower()
+            body = (item.get("body") or "").lower()
+            ts = to_dt(item["timestamp"])
+
+            if subj_q and not (subj_q in subj or subj_q_singular in subj):
+                continue
+            if body_q and body_q not in body:
+                continue
+            if bd := criteria.get("beforeDate"):
+                if ts.date() > to_dt(bd).date():
+                    continue
+            if ad := criteria.get("afterDate"):
+                if ts.date() < to_dt(ad).date():
+                    continue
+            if od := criteria.get("onDate"):
+                if ts.date() != to_dt(od).date():
+                    continue
+            filtered.append(item)
+
+        print(f"[filter] returning {len(filtered)} filtered items")
+        return make_response(200, {"emails": filtered}, event)
+
+    except Exception as e:
+        print("❌ filter_handler error:", e)
+        return make_response(500, {"error": "Internal server error", "details": str(e)}, event)
 
 
 def register_handler(event, context):
@@ -112,172 +292,6 @@ def reply_handler(event, context):
     return make_response(200, {"reply": item.get("replyTemplate", "Hey, I'll get back soon!")}, event)
 
 
-def invoke_and_parse_llm(nl_query: str) -> dict:
-    today: datetime = datetime.utcnow()
-    today_str: str = today.strftime("%Y-%m-%d")
-
-    system = (
-        "You are an API assistant that translates natural language into a JSON object "
-        "for filtering emails. Use only these keys: "
-        "\"triage\", \"fromEmail\", \"subject\", \"bodyContains\", "
-        "\"beforeDate\", \"afterDate\", \"onDate\".\n\n"
-        "You should choose the triage from this exact list (case-insensitive) and nothing else: "
-        "'sales', 'applications', 'partnerships', 'spam', 'miscellaneous', 'unsorted', 'offensive', 'flagged'.\n"
-        "If none apply, do not include a triage field.\n"
-        f"Today's date is {today_str}.\n"
-        "Interpret weekdays like 'Monday' or 'Tuesday' as the most recent past occurrence of that day, "
-        "unless the user explicitly says 'next' or specifies a future date.\n"
-        "If the user mentions a specific weekday and is referring to just that day, use onDate instead of afterDate/beforeDate.\n"
-        "Do not return any 'onDate', 'beforeDate', or 'afterDate' values that lie in the future.\n"
-        "Date fields must be ISO 8601 strings (e.g. '2024-05-01').\n"
-        "- For 'emails in May', use afterDate: 'YYYY-05-01', beforeDate: 'YYYY-05-31'.\n"
-        "- For 'emails on 10 June', use onDate: 'YYYY-06-10'.\n"
-        "- For 'last week', use a 7-day range ending today.\n"
-        "- If the query says 'after July 1st', use afterDate: 'YYYY-07-01'.\n"
-        "- If the query says 'before April 5th', use beforeDate: 'YYYY-04-05'.\n"
-        "- Always include the exact date in beforeDate and afterDate, unless the user says 'excluding' or 'strictly before/after'.\n"
-        "- Example: 'before June 30th' means beforeDate: 'YYYY-06-30' (inclusive).\n"
-        "- 'strictly before June 30th' means beforeDate: 'YYYY-06-29'.\n"
-        "Use as many fields as you can extract, but never hallucinate or invent."
-    )
-    payload = {
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 200,
-        "system": system,
-        "messages": [{
-            "role": "user",
-            "content": [{"type": "text", "text": nl_query}]
-        }],
-    }
-    resp = bedrock.invoke_model(
-        modelId=MODEL_ID,
-        contentType="application/json",
-        accept="application/json",
-        guardrailVersion=GUARDRAIL_VERSION,
-        body=json.dumps(payload),
-    )
-    llm_out = json.loads(resp["body"].read().decode())
-    text = (llm_out.get("content") or [{"text": llm_out.get("completion", "")}])[
-        0]["text"].strip()
-
-    # Try to get a JSON object
-    m: re.Match[str] | None = re.search(r"\{[\s\S]*\}", text)
-    if m:
-        return json.loads(m.group(0))
-
-    cleaned = text.strip().strip("\"'").lower()
-    if cleaned in ALLOWED_CATEGORIES:
-        return {"triage": cleaned.capitalize()}
-
-    raise ValueError(f"No JSON found in LLM output: {text!r}")
-
-
-def filter_handler(event, context):
-    """
-    These contain a series of guardrails to help return a 
-    correct response based on what the AI sent.
-    """
-    try:
-        # print("=== [filter_handler] Event received ===")
-        # print(json.dumps(event))
-
-        body = json.loads(event.get("body", "{}"))
-        user_id = body.get("userID")
-        proxy_email = body.get("proxyEmail")
-        natural_query = (body.get("query") or "").strip()
-
-        if not user_id or not natural_query:
-            return make_response(400, {"error": "Missing userID or query"}, event)
-
-        # print(f"[filter] userID={user_id!r}, query={natural_query!r}")
-
-        extracted_triage = None
-        for cat in ALLOWED_CATEGORIES:
-            if re.match(rf"^{cat}(?:\s+emails?)?\b", natural_query, re.IGNORECASE):
-                extracted_triage = cat.capitalize()
-                natural_query = re.sub(
-                    rf"^{cat}(?:\s+emails?)?\s*", "", natural_query, flags=re.IGNORECASE
-                )
-                break
-
-        # print(f"[filter] Normalised query: {natural_query}")
-        criteria = invoke_and_parse_llm(natural_query)
-        if extracted_triage:
-            criteria["triage"] = extracted_triage
-
-        if (t := criteria.get("triage")) and t.strip().lower() not in ALLOWED_CATEGORIES:
-            # print(f"[filter] Discarding invalid triage: {t}")
-            criteria.pop("triage", None)
-
-        # print("[filter] Parsed criteria:", json.dumps(criteria))
-
-        if not any(criteria.get(k) for k in [
-            "subject", "bodyContains", "triage", "fromEmail", "beforeDate", "afterDate", "onDate"
-        ]):
-            q = natural_query.lower()
-            expr = (
-                Attr("toEmail").eq(proxy_email or user_id) &
-                (Attr("subject").contains(q) | Attr("body").contains(q))
-            )
-            # print("[filter] Fallback filter expression triggered")
-            items = emails_table.scan(FilterExpression=expr).get("Items", [])
-            return make_response(200, {"emails": items}, event)
-
-        expr = Attr("toEmail").eq(proxy_email or user_id)
-        if t := criteria.get("triage"):
-            expr &= Attr("triage").eq(t.capitalize())
-        if f := criteria.get("fromEmail"):
-            expr &= Attr("fromEmail").contains(f)
-        if b := (criteria.get("bodyContains") or "").strip():
-            expr &= Attr("body").contains(b)
-
-        # print("[filter] DynamoDB filter expression:", expr)
-        all_items = emails_table.scan(FilterExpression=expr).get("Items", [])
-        # print(
-        #     f"[filter] scanned {len(all_items)} items before date/text filtering")
-
-        def to_dt(s): return datetime.fromisoformat(s)
-        subj_q = (criteria.get("subject") or "").strip().lower()
-        subj_q_singular = subj_q[:-1] if subj_q.endswith("s") else subj_q
-        body_q = (criteria.get("bodyContains") or "").strip().lower()
-
-        filtered = []
-        for item in all_items:
-            subj = (item.get("subject") or "").lower()
-            body = (item.get("body") or "").lower()
-            ts = to_dt(item["timestamp"])
-
-            if subj_q and not (subj_q in subj or subj_q_singular in subj):
-                continue
-            if body_q and body_q not in body:
-                continue
-            if bd := criteria.get("beforeDate"):
-                if ts.date() > to_dt(bd).date():
-                    continue
-            if ad := criteria.get("afterDate"):
-                if ts.date() < to_dt(ad).date():
-                    continue
-            if od := criteria.get("onDate"):
-                target_date = to_dt(od).date()
-                today_date = datetime.utcnow().date()
-                if target_date > today_date:
-                    # Adjust to most recent past weekday if AI guessed incorrectly
-                    while target_date > today_date:
-                        target_date -= timedelta(days=7)
-                    print(
-                        f"[filter] Adjusted onDate from {od} to {target_date}")
-                if ts.date() != target_date:
-                    continue
-            filtered.append(item)
-
-        # print(f"[filter] returning {len(filtered)} filtered items")
-        return make_response(200, {"emails": filtered}, event)
-
-    except Exception as e:
-        # print("❌ filter_handler error:", e)
-        return make_response(500, {"error": "Internal server error", "details": str(e)}, event)
-
-
 def emails_handler(event, context):
     qs = event.get("queryStringParameters") or {}
     to_email = qs.get("toEmail")
@@ -333,10 +347,13 @@ def update_triage_handler(event, context):
     except emails_table.meta.client.exceptions.ConditionalCheckFailedException:
         return make_response(404, {"error": "Email not found"}, event)
 
+# ─── ROUTER ─────────────────────────────────────────────────────────────────────
+
 
 def lambda_handler(event, context):
     method = event.get("httpMethod")
     resource = event.get("resource") or event.get("path")
+
     if method == "OPTIONS":
         return make_response(200, {"message": "CORS preflight OK"}, event)
 

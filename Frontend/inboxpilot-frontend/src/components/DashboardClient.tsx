@@ -19,27 +19,28 @@ export default function DashboardClient({
 
   const searchParams = useSearchParams();
   const triageFromURL = searchParams.get("triage");
+  const newOnly = searchParams.get("new") === "true";
 
   useEffect(() => {
-    const updateFilter = async () => {
+    const applyFilter = async () => {
       if (triageFromURL) {
         const triage = triageFromURL === "All Emails" ? "All" : triageFromURL;
         setFilter(triage);
 
-        // Fefetch if showing All Emails
-        if (triage === "All") {
-          try {
-            const { emails: fetched } = await getEmailsAction();
-            setEmails(fetched);
-          } catch (err) {
-            toast.error("Failed to load all emails");
-          }
+        try {
+          const { emails: fetched } = await getEmailsAction(
+            triageFromURL, // triage filter
+            newOnly
+          );
+          setEmails(fetched);
+        } catch (err) {
+          toast.error("Failed to load emails");
         }
       }
     };
 
-    updateFilter();
-  }, [triageFromURL]);
+    applyFilter();
+  }, [triageFromURL, newOnly]);
 
   useEffect(() => {
     if (sessionStorage.getItem("showLoginToast")) {
