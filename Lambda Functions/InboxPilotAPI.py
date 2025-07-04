@@ -8,14 +8,13 @@ from datetime import datetime, timedelta
 from boto3.dynamodb.conditions import Attr
 import boto3
 
-# AWS clients
+# Environment & AWS clients
 SECRET_TOKEN = os.environ["AUTH_TOKEN"]
 dynamodb = boto3.resource("dynamodb")
 users_table = dynamodb.Table("Users")
 emails_table = dynamodb.Table("Emails")
 bedrock = boto3.client("bedrock-runtime", region_name="eu-west-1")
 
-# Constants for Bedrock
 MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
 GUARDRAIL_ID = "eca3sfgwx0sr"
 GUARDRAIL_VERSION = "DRAFT"
@@ -41,6 +40,7 @@ def make_response(status_code, body_dict, event=None):
     origin = {k.lower(): v for k, v in headers.items()}.get("origin")
     allowed = {"http://localhost:3000", "https://www.inboxpilot.xyz"}
     cors = origin if origin in allowed else "https://www.inboxpilot.xyz"
+
     return {
         "statusCode": status_code,
         "headers": {
@@ -55,8 +55,9 @@ def make_response(status_code, body_dict, event=None):
 
 
 def invoke_and_parse_llm(nl_query: str) -> dict:
-    today: datetime = datetime.utcnow()
-    today_str: str = today.strftime("%Y-%m-%d")
+    today = datetime.utcnow()
+    this_year = today.year
+    today_str = today.strftime("%Y-%m-%d")
 
     system = (
         "You are an API assistant that translates natural language into a JSON object "
@@ -86,8 +87,10 @@ def invoke_and_parse_llm(nl_query: str) -> dict:
         "{\n"
         "  \"error\": \"INVALID_DATE_REQUEST\",\n"
         "  \"message\": \"June only has 30 days.\"\n"
-        "}"
+        "}\n"
+        "That being said, you must always return JSON if their query doesn't make sense, just edit the values, never the keys, as needed.\n"
     )
+
     payload = {
         "anthropic_version": "bedrock-2023-05-31",
         "max_tokens": 200,
@@ -97,6 +100,7 @@ def invoke_and_parse_llm(nl_query: str) -> dict:
             "content": [{"type": "text", "text": nl_query}]
         }],
     }
+
     resp = bedrock.invoke_model(
         modelId=MODEL_ID,
         contentType="application/json",
@@ -108,15 +112,16 @@ def invoke_and_parse_llm(nl_query: str) -> dict:
     text = (llm_out.get("content") or [{"text": llm_out.get("completion", "")}])[
         0]["text"].strip()
 
+    # Try to extract a JSON object
     parsed = None
-    # Look for a JSON object in the text
+    # 1) Look for a {...} block
     m = re.search(r"\{[\s\S]*\}", text)
     if m:
         try:
             parsed = json.loads(m.group(0))
         except json.JSONDecodeError:
             parsed = None
-    # Otherwise try to parse through the whole text
+    # 2) Otherwise try to parse the whole text
     if parsed is None:
         try:
             parsed = json.loads(text)
@@ -127,11 +132,14 @@ def invoke_and_parse_llm(nl_query: str) -> dict:
             raise ValueError(
                 f"No valid JSON filter found in LLM output: {text!r}")
 
+    # If the model returned an error object, bubble it up
     if "error" in parsed:
         return {
             "error": parsed["error"],
             "message": parsed.get("message", "")
         }
+
+    # Normalize triage casing
     if t := parsed.get("triage"):
         parsed["triage"] = t.capitalize()
 
@@ -153,7 +161,7 @@ def filter_handler(event, context):
         if not user_id or not natural_query:
             return make_response(400, {"error": "Missing userID or query"}, event)
 
-        # Take out any triage at the start of the query
+        # pull out a leading "sales emails", "spam emails", etc.
         extracted_triage = None
         for cat in ALLOWED_CATEGORIES:
             if re.match(rf"^{cat}(?:\s+emails?)?\b", natural_query, re.IGNORECASE):
@@ -162,11 +170,11 @@ def filter_handler(event, context):
                     rf"^{cat}(?:\s+emails?)?\s*", "", natural_query, flags=re.IGNORECASE
                 ).strip()
                 break
-
+        # only call the LLM if there's free-text left
         criteria = {}
         if natural_query:
             criteria = invoke_and_parse_llm(natural_query)
-            # If the LLM signalled an error, perfect chance to return it directly to notify the user why their query failed.
+            # if the LLM signalled an error, return it directly
             if "error" in criteria:
                 return make_response(400, {
                     "error": criteria["error"],
@@ -176,7 +184,7 @@ def filter_handler(event, context):
         if extracted_triage:
             criteria["triage"] = extracted_triage
 
-        # Fallback if nothing got extracted
+        # fallback if absolutely nothing extracted
         if not any(criteria.get(k) for k in [
             "subject", "bodyContains", "triage",
             "fromEmail", "beforeDate", "afterDate", "onDate"
@@ -190,7 +198,7 @@ def filter_handler(event, context):
             items = emails_table.scan(FilterExpression=expr).get("Items", [])
             return make_response(200, {"emails": items}, event)
 
-        # build the DynamoDB scan filter
+        # build your DynamoDB scan filter
         expr = Attr("toEmail").eq(proxy_email or user_id)
         if t := criteria.get("triage"):
             expr &= Attr("triage").eq(t)
@@ -225,6 +233,7 @@ def filter_handler(event, context):
             if od := criteria.get("onDate"):
                 if ts.date() != to_dt(od).date():
                     continue
+
             filtered.append(item)
 
         print(f"[filter] returning {len(filtered)} filtered items")
@@ -293,17 +302,30 @@ def reply_handler(event, context):
 
 
 def emails_handler(event, context):
+    """
+    GET /emails?toEmail=...&triage=...&new=true
+
+    ‘new’ means “only show emails newer than now−2h”.
+    """
+
+    # 1) log the incoming HTTP query
     qs = event.get("queryStringParameters") or {}
+
     to_email = qs.get("toEmail")
     triage = qs.get("triage")
     new_only = qs.get("new") == "true"
+
     if not to_email:
         return make_response(400, {"error": "Missing toEmail"}, event)
+
     expr = Attr("toEmail").eq(to_email)
+
+    # if new_only, compute cutoff and log it
     if new_only:
-        cutoff = time.time() - 3600
-        expr &= Attr("timestamp").gt(time.strftime(
-            "%Y-%m-%dT%H:%M:%S", time.gmtime(cutoff)))
+        cutoff_ts = time.time() - 2 * 3600
+        cutoff_iso = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(cutoff_ts))
+        expr &= Attr("timestamp").gt(cutoff_iso)
+
     if triage and triage != "All Emails":
         expr &= Attr("triage").eq(triage)
     items = emails_table.scan(FilterExpression=expr).get("Items", [])
@@ -331,8 +353,8 @@ def update_triage_handler(event, context):
     new_triage = body.get("newTriage")
     if not email_id or not ts or not new_triage:
         return make_response(400, {"error": "Missing emailId, timestamp, or newTriage"}, event)
-    allowed = {"Sales", "Applications", "Spam", "Partnerships",
-               "Miscellaneous", "Unsorted", "Offensive", "Flagged"}
+    allowed: set[str] = {"Sales", "Applications", "Spam", "Partnerships",
+                         "Miscellaneous", "Unsorted", "Offensive", "Flagged"}
     if new_triage not in allowed:
         return make_response(400, {"error": f"Invalid triage: {new_triage}"}, event)
     try:
@@ -346,8 +368,6 @@ def update_triage_handler(event, context):
         return make_response(200, {"message": "Triage updated successfully"}, event)
     except emails_table.meta.client.exceptions.ConditionalCheckFailedException:
         return make_response(404, {"error": "Email not found"}, event)
-
-# ─── ROUTER ─────────────────────────────────────────────────────────────────────
 
 
 def lambda_handler(event, context):
