@@ -114,14 +114,14 @@ def invoke_and_parse_llm(nl_query: str) -> dict:
 
     # Try to extract a JSON object
     parsed = None
-    # 1) Look for a {...} block
+    # Look for a {...} block
     m = re.search(r"\{[\s\S]*\}", text)
     if m:
         try:
             parsed = json.loads(m.group(0))
         except json.JSONDecodeError:
             parsed = None
-    # 2) Otherwise try to parse the whole text
+    # Otherwise try to parse the whole text
     if parsed is None:
         try:
             parsed = json.loads(text)
@@ -132,14 +132,13 @@ def invoke_and_parse_llm(nl_query: str) -> dict:
             raise ValueError(
                 f"No valid JSON filter found in LLM output: {text!r}")
 
-    # If the model returned an error object, bubble it up
+    # If the model returned an error object, return JSON
     if "error" in parsed:
         return {
             "error": parsed["error"],
             "message": parsed.get("message", "")
         }
 
-    # Normalize triage casing
     if t := parsed.get("triage"):
         parsed["triage"] = t.capitalize()
 
@@ -161,7 +160,7 @@ def filter_handler(event, context):
         if not user_id or not natural_query:
             return make_response(400, {"error": "Missing userID or query"}, event)
 
-        # pull out a leading "sales emails", "spam emails", etc.
+        # Pull out a leading "sales emails", "spam emails", etc.
         extracted_triage = None
         for cat in ALLOWED_CATEGORIES:
             if re.match(rf"^{cat}(?:\s+emails?)?\b", natural_query, re.IGNORECASE):
@@ -170,11 +169,11 @@ def filter_handler(event, context):
                     rf"^{cat}(?:\s+emails?)?\s*", "", natural_query, flags=re.IGNORECASE
                 ).strip()
                 break
-        # only call the LLM if there's free-text left
+        # Only call the LLM if there's free-text left
         criteria = {}
         if natural_query:
             criteria = invoke_and_parse_llm(natural_query)
-            # if the LLM signalled an error, return it directly
+            # If the LLM signalled an error, return it directly
             if "error" in criteria:
                 return make_response(400, {
                     "error": criteria["error"],
@@ -184,7 +183,7 @@ def filter_handler(event, context):
         if extracted_triage:
             criteria["triage"] = extracted_triage
 
-        # fallback if absolutely nothing extracted
+        # Fallback if absolutely nothing extracted
         if not any(criteria.get(k) for k in [
             "subject", "bodyContains", "triage",
             "fromEmail", "beforeDate", "afterDate", "onDate"
@@ -198,7 +197,7 @@ def filter_handler(event, context):
             items = emails_table.scan(FilterExpression=expr).get("Items", [])
             return make_response(200, {"emails": items}, event)
 
-        # build your DynamoDB scan filter
+        # Build DynamoDB scan filter
         expr = Attr("toEmail").eq(proxy_email or user_id)
         if t := criteria.get("triage"):
             expr &= Attr("triage").eq(t)
@@ -308,7 +307,7 @@ def emails_handler(event, context):
     ‘new’ means “only show emails newer than now−2h”.
     """
 
-    # 1) log the incoming HTTP query
+    # Log the incoming HTTP query
     qs = event.get("queryStringParameters") or {}
 
     to_email = qs.get("toEmail")
@@ -320,7 +319,7 @@ def emails_handler(event, context):
 
     expr = Attr("toEmail").eq(to_email)
 
-    # if new_only, compute cutoff and log it
+    # If new_only, compute cutoff and log it
     if new_only:
         cutoff_ts = time.time() - 2 * 3600
         cutoff_iso = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(cutoff_ts))
