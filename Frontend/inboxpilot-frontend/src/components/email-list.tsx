@@ -1,7 +1,8 @@
+// src/components/email-list.tsx
 "use client";
 
 import { Fragment, useState, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getAuthToken, getProxyEmail } from "@/lib/auth.client";
 import { apiRequest } from "@/lib/api";
@@ -19,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ShieldAlert, Trash2, Flag, Loader2 } from "lucide-react";
+import { ShieldAlert, Trash2, Flag, Loader2, RefreshCw } from "lucide-react";
 
 interface EmailListProps {
   initialEmails: Email[];
@@ -33,7 +34,7 @@ const triageColorMap: Record<Email["triage"], string> = {
   Spam: "bg-red-100 border-red-300",
   Miscellaneous: "bg-gray-100 border-gray-300",
   Unsorted: "bg-zinc-100 border-zinc-300",
-  Offensive: "bg-gray-800 border-gray-900 text-white",
+  Offensive: "bg-slate-700 border-slate-500 text-white",
   Flagged: "bg-purple-200 border-purple-400",
   Partnerships: "bg-emerald-100 border-emerald-300",
 };
@@ -44,6 +45,7 @@ export function EmailList({
   setFilter,
 }: EmailListProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const newOnly = searchParams.get("new") === "true";
   const viewMode = (searchParams.get("view") || "table") as "grid" | "table";
 
@@ -55,6 +57,12 @@ export function EmailList({
     new Set()
   );
   const prevCountRef = useRef(initialEmails.length);
+
+  const handleReload = async () => {
+    // navigate to all emails and refresh data
+    await router.push("/?triage=All%20Emails");
+    router.refresh();
+  };
 
   const handleTriageUpdate = async (
     emailId: string,
@@ -133,15 +141,25 @@ export function EmailList({
 
   return (
     <div className="rounded-md border p-4">
-      {/* query + filter UI */}
+      {/* query + filter + reload UI */}
       <div className="mb-4 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-        <Input
-          className="w-full md:w-1/2 border border-black"
-          placeholder="Type natural language query (e.g. 'Emails about lunch')"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleQuerySubmit()}
-        />
+        <div className="flex items-center w-full md:w-1/2 gap-2">
+          <Input
+            className="w-full border border-black"
+            placeholder="Type natural language query (e.g. 'Emails about lunch')"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleQuerySubmit()}
+          />
+          <button
+            onClick={handleReload}
+            title="Reload all emails"
+            className="p-2 hover:bg-muted/20 rounded"
+          >
+            <RefreshCw className="w-5 h-5" />
+          </button>
+        </div>
+
         <Select value={filter} onValueChange={setFilter}>
           <SelectTrigger className="w-56 border border-black">
             <SelectValue placeholder="Filter by Triage" />
